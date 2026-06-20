@@ -1,0 +1,1152 @@
+% ============================================================
+%  Bayesian UQ for Porous Media Permeability Inversion
+%  Full derivations + figures
+% ============================================================
+\documentclass[11pt, a4paper]{article}
+
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{graphicx}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage{mathtools}
+\usepackage{float}
+\usepackage[ruled, linesnumbered]{algorithm2e}
+\usepackage{parskip}
+\usepackage{tcolorbox}
+
+\hypersetup{colorlinks=true, linkcolor=blue!60!black, citecolor=green!50!black}
+
+% ─── notation shortcuts ───────────────────────────────────────────────
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathcal{N}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\IG}{\operatorname{InvGamma}}
+\newcommand{\Ga}{\operatorname{Gamma}}
+\newcommand{\GP}{\mathcal{GP}}
+\newcommand{\norm}[1]{\left\|#1\right\|}
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\bxi}{\boldsymbol{\xi}}   % bold KL coefficient vector
+
+% ─── theorem-like environments ────────────────────────────────────────
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+\newtheorem{proposition}{Proposition}[section]
+\newtheorem{remark}{Remark}[section]
+
+% ─── figure path ─────────────────────────────────────────────────────
+\graphicspath{{./figures/}{./conjugate_priors/figures/}}
+
+% =====================================================================
+\begin{document}
+
+\title{\textbf{Bayesian Uncertainty Quantification for Permeability Inversion
+in Porous Media}\\[6pt]
+\large Probability Distributions, Conjugate Priors, Gaussian Random Fields,
+and pCN-Gibbs Sampling --- Full Derivations with Figures}
+\author{}
+\date{\today}
+\maketitle
+\tableofcontents
+\newpage
+
+% =====================================================================
+\section{Introduction}
+% =====================================================================
+
+Estimating the permeability field $k(x)$ of a porous medium from sparse
+pressure measurements is a canonical inverse problem in subsurface
+engineering.  The forward map is Darcy's law, which is well-posed: given
+$k(x)$, compute $p(x)$.  The inverse direction---recovering $k(x)$ from
+a handful of noisy pressure readings---is \emph{ill-posed}: many permeability
+fields can reproduce the same observations within measurement error.
+
+The Bayesian framework converts this into a well-posed problem by placing a
+probability distribution over $k(x)$ and using data to update it.  The result
+is not a single ``best'' permeability map but a \emph{posterior distribution}
+that quantifies how uncertain we remain after the experiment.
+
+This document derives every piece of machinery used in the accompanying Python
+code, starting from the probability distributions introduced in UQ textbooks
+(Normal, Gamma, Inverse-Gamma) and building up to the full pCN-Gibbs posterior
+sampler.
+
+% =====================================================================
+\section{The Forward Problem: 1D Single-Phase Darcy Flow}
+% =====================================================================
+
+\subsection{Governing equation}
+
+We consider single-phase, steady, incompressible flow on $[0,1]$ governed by
+Darcy's law with no volumetric source:
+\begin{equation}
+  -\frac{\mathrm{d}}{\mathrm{d}x}\!\left[k(x)\,\frac{\mathrm{d}p}{\mathrm{d}x}\right] = 0,
+  \qquad x\in(0,1),
+  \label{eq:darcy}
+\end{equation}
+with Dirichlet boundary conditions $p(0)=p_L$ and $p(1)=p_R$.  The
+permeability $k(x)>0$ is the \emph{unknown field} we wish to infer.
+
+\subsection{Analytic solution}
+
+Integrating \eqref{eq:darcy} once gives $k(x)\,p'(x)=C$ (constant flux).
+A second integration yields:
+\begin{equation}
+  \boxed{%
+  p(x) = p_L + (p_R - p_L)\,\frac{R(x)}{R(1)},
+  \quad
+  R(x) \coloneqq \int_0^x \frac{\mathrm{d}s}{k(s)}}
+  \label{eq:darcy_sol}
+\end{equation}
+where $R(x)$ is the cumulative hydraulic resistance.  The Darcy flux
+(constant throughout the domain) is
+\begin{equation}
+  q = \frac{p_L - p_R}{R(1)}.
+\end{equation}
+Equation \eqref{eq:darcy_sol} is computed numerically via the
+cumulative trapezoidal rule on the $N$-point grid
+$\{x_j\}_{j=0}^{N-1}$, giving an exact (to quadrature order) evaluation
+in $O(N)$ operations.
+
+\subsection{Observation operator}
+
+Let $\mathbf{x}_s = (x_{s_1},\ldots,x_{s_m})$ be the sensor locations.
+The observation operator $H$ extracts the pressure at these points:
+\begin{equation}
+  H : k(\cdot) \mapsto \mathbf{d} = \bigl[p(x_{s_1}),\ldots,p(x_{s_m})\bigr]^\top
+  \in \R^m.
+\end{equation}
+Composing with the forward solve we write $G=H\circ\text{Darcy}$, so that
+$\mathbf{d}_{\mathrm{pred}} = G(k)$.
+
+% =====================================================================
+\section{Probability Distributions in Bayesian UQ}
+% =====================================================================
+
+Every UQ textbook opens with the Normal, Gamma, and Inverse-Gamma
+distributions.  Their relevance is not axiomatic---each one earns its place
+by solving a specific subproblem.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig1_distributions}
+  \caption{The three foundational distributions for Gaussian-likelihood UQ.
+    \textit{Left}: Normal---models measurement noise and the log-permeability
+    prior.
+    \textit{Centre}: Inverse-Gamma---conjugate hyperprior on the noise
+    variance $\sigma_\varepsilon^2$.
+    \textit{Right}: Gamma---conjugate prior on the precision
+    $\tau=1/\sigma_\varepsilon^2$.}
+  \label{fig:distributions}
+\end{figure}
+
+\subsection{Normal (Gaussian) distribution}
+
+\begin{definition}
+  $X\sim\N(\mu,\sigma^2)$ has pdf
+  \[
+    p(x;\mu,\sigma^2) = \frac{1}{\sqrt{2\pi\sigma^2}}
+    \exp\!\left(-\frac{(x-\mu)^2}{2\sigma^2}\right).
+  \]
+\end{definition}
+
+The Normal distribution serves three distinct roles in our problem:
+\begin{enumerate}
+  \item \textbf{Likelihood / measurement noise.}
+    Observations are modelled as
+    $\mathbf{d}_{\mathrm{obs}} = G(k) + \boldsymbol{\varepsilon}$,
+    $\boldsymbol{\varepsilon}\sim\N(\mathbf{0},\sigma_\varepsilon^2 I)$.
+    This is the maximum-entropy distribution consistent with a known
+    variance, and it converts the data misfit $\norm{\mathbf{d}_{\mathrm{obs}}-G(k)}^2$
+    into a log-likelihood.
+
+  \item \textbf{Prior on the log-permeability field.}
+    Because $k(x)>0$, we model $Y(x)=\log k(x)$ as a Gaussian random
+    field $Y\sim\GP(\mu_Y, C)$, which guarantees $k=\exp(Y)>0$ by
+    construction.
+
+  \item \textbf{KL coefficients.}
+    The Karhunen-Lo\`eve expansion (Section~\ref{sec:kl}) parametrises
+    $Y(x)$ through coefficients $\xi_i\sim\N(0,1)$, reducing the
+    infinite-dimensional inference to a problem in $\R^M$.
+\end{enumerate}
+
+\subsection{Gamma distribution}
+
+\begin{definition}
+  $X\sim\Ga(\alpha,\beta)$ with rate $\beta$ has pdf
+  \[
+    p(x;\alpha,\beta) = \frac{\beta^\alpha}{\Gamma(\alpha)}\,
+    x^{\alpha-1}\,e^{-\beta x}, \quad x>0,
+  \]
+  with $\E[X]=\alpha/\beta$, $\Var[X]=\alpha/\beta^2$.
+\end{definition}
+
+The Gamma is the \emph{conjugate prior} for the precision
+$\tau=1/\sigma_\varepsilon^2$ of a Gaussian likelihood: if
+$\tau\sim\Ga(\alpha_0,\beta_0)$ then, after $n$ observations with
+sum of squared residuals $\mathrm{SS}$, the posterior is
+$\tau|\mathbf{d}\sim\Ga(\alpha_0+n/2,\;\beta_0+\mathrm{SS}/2)$.
+
+\subsection{Inverse-Gamma distribution}
+
+\begin{definition}
+  $X\sim\IG(\alpha,\beta)$ with scale $\beta$ has pdf
+  \[
+    p(x;\alpha,\beta) = \frac{\beta^\alpha}{\Gamma(\alpha)}\,
+    x^{-\alpha-1}\,e^{-\beta/x}, \quad x>0,
+  \]
+  with $\E[X]=\beta/(\alpha-1)$ for $\alpha>1$ and
+  $\mathrm{Mode}[X]=\beta/(\alpha+1)$.
+\end{definition}
+
+If $X\sim\IG(\alpha,\beta)$ then $1/X\sim\Ga(\alpha,\beta)$, so Gamma and
+Inverse-Gamma are in a dual relationship.  We use $\IG$ as the conjugate
+prior for $\sigma_\varepsilon^2$ because it is the natural distribution for
+a variance parameter (positive, right-skewed, supported on $(0,\infty)$).
+
+The key closed-form update is derived in Section~\ref{sec:nig}:
+\begin{equation}
+  \sigma_\varepsilon^2\sim\IG(\alpha_0,\beta_0)
+  \;\;\Longrightarrow\;\;
+  \sigma_\varepsilon^2\,|\,\mathbf{r}\sim
+  \IG\!\left(\alpha_0+\tfrac{n}{2},\;\beta_0+\tfrac{\norm{\mathbf{r}}^2}{2}\right)
+  \label{eq:ig_update}
+\end{equation}
+where $\mathbf{r}=\mathbf{d}_{\mathrm{obs}}-G(\xi)$ are the residuals.
+
+\subsection{Log-Normal distribution and the permeability prior}
+
+Because $k=e^Y$ and $Y\sim\N(\mu_Y,\sigma_Y^2)$, the permeability itself
+follows a log-normal:
+\[
+  p(k;\mu_Y,\sigma_Y)
+  = \frac{1}{k\,\sigma_Y\sqrt{2\pi}}
+    \exp\!\left(-\frac{(\log k - \mu_Y)^2}{2\sigma_Y^2}\right),
+  \quad k>0.
+\]
+The median permeability is $e^{\mu_Y}$ and the coefficient of variation
+grows with $\sigma_Y$.  Working in log-space (i.e.\ modelling $Y=\log k$
+with a Gaussian field) is both statistically natural and computationally
+convenient: positivity is guaranteed by construction and the posterior
+inherits the Gaussian structure of the prior.
+
+% =====================================================================
+\section{Gaussian Random Field Prior and KL Expansion}
+\label{sec:kl}
+% =====================================================================
+
+\subsection{Gaussian random fields}
+
+A Gaussian random field on $[0,1]$ is a stochastic process
+$\{Y(x):x\in[0,1]\}$ such that every finite-dimensional marginal is
+multivariate Gaussian.  It is fully specified by its mean function
+$\mu_Y(x)=\E[Y(x)]$ and covariance function (kernel)
+$C(x,x')=\mathrm{Cov}[Y(x),Y(x')]$.
+
+We use the exponential (Ornstein-Uhlenbeck) kernel:
+\begin{equation}
+  C(x,x') = \sigma_Y^2\,\exp\!\left(-\frac{\abs{x-x'}}{\ell}\right),
+  \label{eq:exp_kernel}
+\end{equation}
+where $\sigma_Y^2$ is the marginal variance and $\ell$ is the
+\emph{correlation length}.  Small $\ell$ produces rough, rapidly-varying
+fields; large $\ell$ produces smooth, slowly-varying ones.
+
+\subsection{Karhunen-Lo\`eve expansion}
+
+Let $\{x_j\}_{j=0}^{N-1}$ be the $N$-point discretisation grid.  Define
+the $N\times N$ covariance matrix $\mathbf{C}$ with
+$C_{ij}=C(x_i,x_j)$.  Its symmetric eigendecomposition gives
+\[
+  \mathbf{C} = \boldsymbol{\Phi}\,\mathrm{diag}(\boldsymbol{\lambda})\,\boldsymbol{\Phi}^\top,
+  \quad \lambda_1\geq\lambda_2\geq\cdots\geq\lambda_N\geq 0,
+\]
+where $\boldsymbol{\phi}_i$ is the $i$-th eigenvector (KL mode).
+
+Retaining only the $M$ leading eigenpairs gives the \emph{truncated KL expansion}:
+\begin{equation}
+  \boxed{%
+  Y(x) \approx \mu_Y + \sum_{i=1}^{M}\sqrt{\lambda_i}\,\phi_i(x)\,\xi_i,
+  \qquad \xi_i\overset{\mathrm{i.i.d.}}{\sim}\N(0,1)}
+  \label{eq:kl}
+\end{equation}
+
+Equation \eqref{eq:kl} converts the infinite-dimensional field inference
+into a finite-dimensional problem: \emph{infer the $M$ scalar coefficients
+$\xi=(\xi_1,\ldots,\xi_M)^\top$}.  The fraction of variance captured is
+\[
+  f_M = \frac{\sum_{i=1}^M\lambda_i}{\sum_{i=1}^N\lambda_i}.
+\]
+For the exponential kernel with $\ell=0.3$ and $N=65$, the first $M=20$
+modes capture approximately 96.8\% of the total field variance.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig2_kl_prior}
+  \caption{Karhunen-Lo\`eve expansion of the log-permeability GRF.
+    \textit{Left}: eigenvalue decay of the exponential kernel;
+    the rapid fall justifies truncation at $M=20$.
+    \textit{Centre}: first five eigenfunctions (spatial fingerprints
+    of each $\xi_i$).
+    \textit{Right}: 15 prior sample fields drawn by sampling
+    $\xi\sim\N(\mathbf{0},I)$ and applying \eqref{eq:kl}.}
+  \label{fig:kl}
+\end{figure}
+
+\subsection{Wiener-Askey connection to polynomial chaos}
+
+When a surrogate-based approach (polynomial chaos expansion, PCE) is
+preferred over MCMC, the distribution chosen for the KL coefficients
+dictates the orthogonal polynomial basis:
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Input distribution & Polynomial basis & Support \\
+\midrule
+$\xi_i\sim\N(0,1)$       & Hermite   & $(-\infty,\infty)$ \\
+$\xi_i\sim\Ga(\alpha,1)$ & Laguerre  & $(0,\infty)$ \\
+$\xi_i\sim\mathrm{Unif}(-1,1)$ & Legendre & $[-1,1]$ \\
+$\xi_i\sim\mathrm{Beta}(\alpha,\beta)$ & Jacobi & $[0,1]$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Since we use $\xi_i\sim\N(0,1)$, the natural PCE basis is Hermite
+polynomials.
+
+% =====================================================================
+\section{Bayesian Formulation of the Inverse Problem}
+% =====================================================================
+
+\subsection{Bayes' theorem}
+
+Let $\xi\in\R^M$ be the KL coefficients (our inferred quantity) and
+$\sigma_\varepsilon^2>0$ the noise variance (treated as unknown,
+hierarchical model).  The observation model is
+\begin{equation}
+  \mathbf{d}_{\mathrm{obs}} = G(\xi) + \boldsymbol{\varepsilon},
+  \qquad
+  \boldsymbol{\varepsilon}\sim\N(\mathbf{0},\sigma_\varepsilon^2 I_m),
+  \label{eq:obs_model}
+\end{equation}
+where $G(\xi)$ maps KL coefficients to predicted sensor pressures
+(via the KL expansion and the Darcy solve).
+
+Bayes' theorem gives the posterior:
+\begin{equation}
+  \underbrace{p(\xi,\sigma_\varepsilon^2\,|\,\mathbf{d}_{\mathrm{obs}})}_{\text{posterior}}
+  \;\propto\;
+  \underbrace{p(\mathbf{d}_{\mathrm{obs}}\,|\,\xi,\sigma_\varepsilon^2)}_{\text{likelihood}}
+  \;\cdot\;
+  \underbrace{p(\xi)}_{\text{field prior}}
+  \;\cdot\;
+  \underbrace{p(\sigma_\varepsilon^2)}_{\text{noise hyperprior}}
+  \label{eq:bayes}
+\end{equation}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig3_problem_setup}
+  \caption{Synthetic experiment setup.
+    \textit{Left}: true log-permeability field (one KL realisation)
+    overlaid on the prior $\pm2\sigma_Y$ envelope.
+    \textit{Right}: true pressure field and the 7 noisy sensor
+    observations that constitute $\mathbf{d}_{\mathrm{obs}}$.}
+  \label{fig:setup}
+\end{figure}
+
+\subsection{Three terms in the posterior}
+
+\paragraph{Gaussian likelihood.}
+\begin{equation}
+  \log p(\mathbf{d}_{\mathrm{obs}}\,|\,\xi,\sigma_\varepsilon^2)
+  = -\frac{m}{2}\log(2\pi\sigma_\varepsilon^2)
+    -\frac{\norm{\mathbf{d}_{\mathrm{obs}}-G(\xi)}^2}{2\sigma_\varepsilon^2}
+  \label{eq:loglik}
+\end{equation}
+This is the ``comparison to experiment'' term: it penalises the squared
+misfit between the forward model prediction and the observed pressures,
+weighted by the noise level.
+
+\paragraph{KL-coefficient prior.}
+The KL parametrisation absorbs the GRF covariance into the eigenvectors,
+so the prior on coefficients is simply:
+\begin{equation}
+  \xi\sim\N(\mathbf{0},I_M)
+  \;\Longrightarrow\;
+  \log p(\xi) = -\tfrac{1}{2}\norm{\xi}^2 + \mathrm{const}
+  \label{eq:xi_prior}
+\end{equation}
+
+\paragraph{Inverse-Gamma hyperprior.}
+The noise variance $\sigma_\varepsilon^2$ is unknown.  We place a
+weakly-informative conjugate prior:
+\begin{equation}
+  \sigma_\varepsilon^2\sim\IG(\alpha_0,\beta_0),
+  \quad
+  \log p(\sigma_\varepsilon^2)
+  = -(\alpha_0+1)\log\sigma_\varepsilon^2 - \frac{\beta_0}{\sigma_\varepsilon^2}
+    + \mathrm{const}
+  \label{eq:ig_prior}
+\end{equation}
+
+\subsection{Regularisation interpretation}
+
+Dropping the noise hyperprior and fixing $\sigma_\varepsilon^2$, the
+log-posterior is
+\[
+  \log p(\xi\,|\,\mathbf{d}_{\mathrm{obs}}) \propto
+  -\frac{\norm{\mathbf{d}_{\mathrm{obs}}-G(\xi)}^2}{2\sigma_\varepsilon^2}
+  -\frac{\norm{\xi}^2}{2}.
+\]
+Maximising this is exactly \emph{Tikhonov regularisation} with
+regularisation parameter $\lambda=\sigma_\varepsilon^2$.  The Bayesian
+framework additionally provides:
+(i) a principled choice of $\lambda$ via the hyperprior;
+(ii) credible intervals from the full posterior, not just the MAP point.
+
+% =====================================================================
+\section{Conjugate Priors: Theory and Full Derivations}
+\label{sec:conjugate}
+% =====================================================================
+
+\begin{definition}
+  A prior $p(\theta\,|\,\mathbf{h})$ is \textbf{conjugate} to the likelihood
+  $p(\mathbf{x}\,|\,\theta)$ if the posterior $p(\theta\,|\,\mathbf{x})$
+  belongs to the same parametric family as the prior, with updated
+  hyperparameters $\mathbf{h}\to\mathbf{h}_n$.
+\end{definition}
+
+The consequence is that Bayesian updating reduces to a few algebraic
+formulas---no numerical integration, no MCMC, no approximation.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig1_triptych}
+  \caption{The prior-likelihood-posterior triptych for the Normal-Normal
+    conjugate pair (Case 1).
+    The prior (blue), likelihood function (orange), and posterior (green)
+    are all Gaussians; only the mean and width change.}
+  \label{fig:triptych}
+\end{figure}
+
+% ─── Case 1 ────────────────────────────────────────────────────────────
+\subsection{Case 1: Normal-Normal (inferring the mean, $\sigma$ known)}
+\label{sec:nn}
+
+\paragraph{Model.}
+\[
+  x_i\,|\,\mu \overset{\mathrm{i.i.d.}}{\sim} \N(\mu,\sigma^2),\quad i=1,\ldots,n,
+  \qquad
+  \mu\sim\N(\mu_0,\tau_0^2).
+\]
+
+\paragraph{Derivation.}
+The log-posterior is
+\begin{align}
+  \log p(\mu\,|\,\mathbf{x}) &\propto
+  \sum_{i=1}^n \log\N(x_i;\mu,\sigma^2) + \log\N(\mu;\mu_0,\tau_0^2)
+  \notag\\
+  &= -\frac{1}{2}\left[
+    \frac{\sum(x_i-\mu)^2}{\sigma^2}
+    +\frac{(\mu-\mu_0)^2}{\tau_0^2}
+  \right] + \mathrm{const}.
+  \label{eq:nn_logpost}
+\end{align}
+Expanding $\sum(x_i-\mu)^2 = n\mu^2 - 2n\bar{x}\mu + \sum x_i^2$ and
+collecting terms in $\mu$:
+\begin{equation}
+  \log p(\mu\,|\,\mathbf{x}) \propto
+  -\frac{1}{2}\left[\underbrace{\left(\frac{n}{\sigma^2}+\frac{1}{\tau_0^2}\right)}_{\displaystyle 1/\tau_n^2}
+  \mu^2
+  - 2\underbrace{\left(\frac{n\bar{x}}{\sigma^2}+\frac{\mu_0}{\tau_0^2}\right)}_{\displaystyle \mu_n/\tau_n^2}\mu\right].
+\end{equation}
+Completing the square gives $\log p(\mu\,|\,\mathbf{x})\propto -(\mu-\mu_n)^2/(2\tau_n^2)$, so:
+
+\begin{tcolorbox}[colback=blue!5, colframe=blue!50!black, title=Normal-Normal update, fontupper=\small]
+Posterior: $\;\mu\,|\,\mathbf{x}\sim\N(\mu_n,\tau_n^2)$ \quad with
+\begin{align}
+  \frac{1}{\tau_n^2} &= \frac{1}{\tau_0^2} + \frac{n}{\sigma^2}
+    \qquad\text{(precisions add)}\label{eq:nn_prec}\\[4pt]
+  \mu_n &= \tau_n^2\!\left(\frac{\mu_0}{\tau_0^2}+\frac{n\bar{x}}{\sigma^2}\right)
+    = \frac{(1/\tau_0^2)\,\mu_0 + (n/\sigma^2)\,\bar{x}}{1/\tau_0^2+n/\sigma^2}
+    \quad\text{(precision-weighted mean)}\label{eq:nn_mean}
+\end{align}
+\end{tcolorbox}
+
+\paragraph{Key insight.}
+Equation~\eqref{eq:nn_prec} shows that the posterior \emph{precision}
+$1/\tau_n^2$ grows \emph{linearly} in $n$; equivalently the variance
+$\tau_n^2\sim 1/n$ for large $n$.  Adding data is like adding parallel
+resistors: more resistors $\Rightarrow$ lower total resistance.
+
+\paragraph{Pseudo-data interpretation.}
+The prior $\N(\mu_0,\tau_0^2)$ can be viewed as coming from $n_0=\sigma^2/\tau_0^2$
+imaginary observations all equal to $\mu_0$.  Real data updates the same
+counter: $n_{\mathrm{eff}}=n_0+n$, $\bar{x}_{\mathrm{eff}}=(n_0\mu_0+n\bar{x})/n_{\mathrm{eff}}$.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig2_sequential_nn}
+  \caption{Sequential Normal-Normal updating at $n=0,1,3,8,20,50$.
+    The posterior sharpens around $\mu_{\mathrm{true}}=1.5$ (red dashed line)
+    as data accumulates.  At every step the posterior is exactly Gaussian.}
+  \label{fig:seq_nn}
+\end{figure}
+
+% ─── Case 2 ────────────────────────────────────────────────────────────
+\subsection{Case 2: Normal-Inverse-Gamma (inferring $\sigma^2$, $\mu$ known)}
+\label{sec:nig}
+
+This is the case used directly in the Darcy Gibbs step.
+
+\paragraph{Model.}
+\[
+  x_i\,|\,\sigma^2 \overset{\mathrm{i.i.d.}}{\sim}\N(\mu,\sigma^2),
+  \quad
+  \sigma^2\sim\IG(\alpha_0,\beta_0).
+\]
+
+\paragraph{Derivation.}
+The InvGamma prior pdf is $p(\sigma^2)\propto (\sigma^2)^{-\alpha_0-1}e^{-\beta_0/\sigma^2}$.
+The likelihood is
+\[
+  p(\mathbf{x}\,|\,\sigma^2)
+  = (2\pi\sigma^2)^{-n/2}\exp\!\left(-\frac{\mathrm{SS}}{2\sigma^2}\right),
+  \quad \mathrm{SS}=\sum_{i=1}^n(x_i-\mu)^2.
+\]
+The posterior is therefore
+\begin{align}
+  p(\sigma^2\,|\,\mathbf{x})
+  &\propto (\sigma^2)^{-n/2}\exp\!\left(-\frac{\mathrm{SS}}{2\sigma^2}\right)
+           \cdot(\sigma^2)^{-\alpha_0-1}e^{-\beta_0/\sigma^2} \notag\\
+  &= (\sigma^2)^{-(\alpha_0+n/2)-1}
+     \exp\!\left(-\frac{\beta_0+\mathrm{SS}/2}{\sigma^2}\right).
+  \label{eq:nig_post}
+\end{align}
+Recognising \eqref{eq:nig_post} as an InvGamma kernel:
+
+\begin{tcolorbox}[colback=orange!5, colframe=orange!60!black, title=Normal-InvGamma update, fontupper=\small]
+Posterior: $\;\sigma^2\,|\,\mathbf{x}\sim\IG(\alpha_n,\beta_n)$ \quad with
+\begin{align}
+  \alpha_n &= \alpha_0 + \frac{n}{2} \label{eq:nig_alpha}\\
+  \beta_n  &= \beta_0 + \frac{\mathrm{SS}}{2}
+    = \beta_0 + \frac{1}{2}\sum_{i=1}^n(x_i-\mu)^2 \label{eq:nig_beta}
+\end{align}
+Posterior mean: $\;\E[\sigma^2\,|\,\mathbf{x}]=\beta_n/(\alpha_n-1)$
+\quad (for $\alpha_n>1$).
+\end{tcolorbox}
+
+\paragraph{Information accumulation.}
+$\alpha_n$ grows at rate $\frac{1}{2}$ per observation (each datum
+contributes ``half a degree of freedom''), while $\beta_n$ accumulates
+the sum of squared residuals.  Both updates are additive and can be
+applied one datum at a time with identical results.
+
+\paragraph{Application to the Darcy Gibbs step.}
+With KL coefficients $\xi$ fixed, the Darcy residuals
+$\mathbf{r}=\mathbf{d}_{\mathrm{obs}}-G(\xi)$ play the role of $\{x_i-\mu\}$,
+and $\mathrm{SS}=\norm{\mathbf{r}}^2$.  Equation~\eqref{eq:ig_update}
+gives a \emph{single closed-form sample} for $\sigma_\varepsilon^2$
+without any accept/reject step.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig3_sequential_nig}
+  \caption{Sequential Normal-InvGamma updating at $n=0,1,3,8,20,50$.
+    The InvGamma posterior concentrates near $\sigma^2_{\mathrm{true}}=0.16$
+    (red dashed).  Throughout, the posterior remains an InvGamma distribution.}
+  \label{fig:seq_nig}
+\end{figure}
+
+% ─── Precision geometry ───────────────────────────────────────────────
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig4_precision}
+  \caption{Information geometry of conjugate updates.
+    \textit{Left}: posterior variance $\tau_n^2$ decreases hyperbolically in $n$.
+    \textit{Centre}: posterior precision $1/\tau_n^2$ is linear in $n$
+    (information adds).
+    \textit{Right}: InvGamma shape parameter $\alpha_n=\alpha_0+n/2$ is
+    also linear (``half-observation'' accumulation).}
+  \label{fig:precision}
+\end{figure}
+
+% ─── Case 3 ────────────────────────────────────────────────────────────
+\subsection{Case 3: Normal-Normal-InvGamma (joint inference of $\mu$ and $\sigma^2$)}
+\label{sec:nig_joint}
+
+\paragraph{Model.}
+The joint Normal-InvGamma (NIG) prior factorises as
+\begin{equation}
+  p(\mu,\sigma^2) = \N\!\left(\mu\,\Big|\,\mu_0,\frac{\sigma^2}{\kappa_0}\right)
+  \cdot\IG(\sigma^2\,|\,\alpha_0,\beta_0),
+  \label{eq:nig_joint_prior}
+\end{equation}
+where $\kappa_0$ sets the strength of the prior on $\mu$ relative to the data noise.
+
+\paragraph{Derivation.}
+Given data $\{x_i\}_{i=1}^n$ with sample mean $\bar{x}$ and
+within-sample sum of squares $S=\sum(x_i-\bar{x})^2$, the log-posterior is
+\begin{align}
+  \log p(\mu,\sigma^2\,|\,\mathbf{x})
+  &\propto \log p(\mathbf{x}\,|\,\mu,\sigma^2)
+           + \log p(\mu\,|\,\sigma^2)
+           + \log p(\sigma^2) \notag\\
+  &= -\frac{n+1}{2}\log\sigma^2
+     -\frac{1}{2\sigma^2}\left[
+       \sum(x_i-\mu)^2 + \kappa_0(\mu-\mu_0)^2
+     \right]
+     - (\alpha_0+1)\log\sigma^2 - \frac{\beta_0}{\sigma^2}.
+\end{align}
+Completing the square in $\mu$ (treating $\sigma^2$ as fixed):
+\[
+  \sum(x_i-\mu)^2 + \kappa_0(\mu-\mu_0)^2
+  = (\kappa_0+n)\!\left(\mu - \mu_n\right)^2 + S
+  + \frac{\kappa_0 n(\bar{x}-\mu_0)^2}{\kappa_0+n},
+\]
+where $\mu_n = (\kappa_0\mu_0+n\bar{x})/(\kappa_0+n)$.  Substituting back:
+
+\begin{tcolorbox}[colback=green!5, colframe=green!60!black, title=Normal-InvGamma joint update, fontupper=\small]
+Posterior: $\;(\mu,\sigma^2)\,|\,\mathbf{x}\sim\mathrm{NIG}(\mu_n,\kappa_n,\alpha_n,\beta_n)$
+with
+\begin{align}
+  \kappa_n &= \kappa_0 + n \label{eq:nig_joint_kappa}\\
+  \mu_n    &= \frac{\kappa_0\mu_0 + n\bar{x}}{\kappa_n} \label{eq:nig_joint_mu}\\
+  \alpha_n &= \alpha_0 + \frac{n}{2} \label{eq:nig_joint_alpha}\\
+  \beta_n  &= \beta_0 + \frac{S}{2}
+             + \frac{\kappa_0 n(\bar{x}-\mu_0)^2}{2\kappa_n} \label{eq:nig_joint_beta}
+\end{align}
+\end{tcolorbox}
+
+\paragraph{Marginal posteriors.}
+Integrating out $\sigma^2$ gives the marginal for $\mu$:
+\[
+  \mu\,|\,\mathbf{x}\;\sim\;
+  t_{2\alpha_n}\!\left(\mu_n,\;\sqrt{\frac{\beta_n(\kappa_n+1)}{\alpha_n\kappa_n}}\right),
+\]
+a Student-$t$ with $2\alpha_n$ degrees of freedom, heavier-tailed than a Gaussian.
+The marginal for $\sigma^2$ is simply $\IG(\alpha_n,\beta_n)$.
+
+\paragraph{Pseudo-data interpretation.}
+$\kappa_0$ imaginary observations with mean $\mu_0$ inform $\mu$;
+$2\alpha_0$ imaginary observations with half-sum-of-squares $\beta_0$ inform $\sigma^2$.
+The real data updates both counters simultaneously.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig5_joint_nig}
+  \caption{Joint NIG posterior contours in $(\mu,\sigma^2)$ space.
+    \textit{Left}: the prior spans a wide region.
+    \textit{Centre}: after $n=8$ observations, the contours begin to
+    concentrate.
+    \textit{Right}: after $n=50$, the posterior is a tight ellipse
+    around the true values (red star).}
+  \label{fig:joint_nig}
+\end{figure}
+
+\subsection{Connection to the Darcy Gibbs step}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig6_darcy_gibbs}
+  \caption{The InvGamma conjugate update applied to Darcy residuals.
+    \textit{Left}: the prior InvGamma is flat over the relevant range;
+    after conditioning on 7 sensor residuals the posterior concentrates
+    near the true $\sigma_\varepsilon^2$.
+    \textit{Right}: the closed-form update formula as used in the
+    Gibbs step of the pCN sampler.}
+  \label{fig:darcy_gibbs}
+\end{figure}
+
+Table~\ref{tab:conjugate} summarises the three conjugate pairs.
+
+\begin{table}[H]
+  \centering
+  \caption{Conjugate pairs for the Gaussian likelihood.}
+  \label{tab:conjugate}
+  \begin{tabular}{llll}
+    \toprule
+    Unknown & Prior family & Posterior family & Update rule \\
+    \midrule
+    $\mu$ ($\sigma$ known) & Normal & Normal &
+      $\tau_n^{-2} = \tau_0^{-2} + n\sigma^{-2}$ \\[2pt]
+    $\sigma^2$ ($\mu$ known) & InvGamma & InvGamma &
+      $\alpha_n=\alpha_0+n/2,\;\beta_n=\beta_0+\mathrm{SS}/2$ \\[2pt]
+    $(\mu,\sigma^2)$ joint & Normal-InvGamma & Normal-InvGamma &
+      Eqs.~\eqref{eq:nig_joint_kappa}--\eqref{eq:nig_joint_beta} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% =====================================================================
+\section{The pCN-Gibbs MCMC Sampler}
+% =====================================================================
+
+\subsection{Why not random-walk Metropolis-Hastings?}
+
+A naive random-walk MH proposal $\xi^*=\xi+\varepsilon w$, $w\sim\N(0,I)$
+suffers from the \emph{curse of dimensionality}: the optimal step size
+$\varepsilon\sim M^{-1/2}$ shrinks as the number of modes $M$ grows, causing
+the acceptance rate to collapse.
+
+\subsection{The pCN proposal}
+
+The preconditioned Crank-Nicolson (pCN) proposal is designed for targets
+of the form $p(\xi\,|\,\mathbf{d})\propto p(\mathbf{d}\,|\,\xi)\,\N(\xi;0,I)$:
+\begin{equation}
+  \xi^* = \sqrt{1-\beta^2}\,\xi + \beta\,w, \qquad w\sim\N(0,I_M),
+  \quad \beta\in(0,1).
+  \label{eq:pcn}
+\end{equation}
+
+\paragraph{Prior invariance.}
+If $\xi\sim\N(0,I)$ then $\xi^*\sim\N(0,I)$: the proposal is
+\emph{reversible with respect to the prior}.  The Metropolis
+acceptance ratio therefore only involves the likelihood ratio:
+\begin{equation}
+  \alpha(\xi,\xi^*)
+  = \min\!\left(1,\;
+    \frac{p(\mathbf{d}_{\mathrm{obs}}\,|\,\xi^*,\sigma_\varepsilon^2)}
+         {p(\mathbf{d}_{\mathrm{obs}}\,|\,\xi,\sigma_\varepsilon^2)}
+  \right)
+  = \min\!\left(1,\;
+    \exp\!\left[\frac{\norm{\mathbf{r}}^2-\norm{\mathbf{r}^*}^2}{2\sigma_\varepsilon^2}\right]\right),
+  \label{eq:pcn_accept}
+\end{equation}
+where $\mathbf{r}=\mathbf{d}_{\mathrm{obs}}-G(\xi)$ and
+$\mathbf{r}^*=\mathbf{d}_{\mathrm{obs}}-G(\xi^*)$.
+
+\paragraph{Dimension-robustness.}
+The acceptance rate depends only on the likelihood increment, not on $M$.
+The same $\beta$ works regardless of the number of KL modes.
+
+\subsection{Full sampler}
+
+\begin{algorithm}[H]
+\caption{pCN-Gibbs sampler for permeability inversion}
+\KwIn{Data $\mathbf{d}_{\mathrm{obs}}$, forward model $G$, KL object $\mathcal{K}$,
+      step size $\beta$, hyperparameters $(\alpha_0,\beta_0)$,
+      burn-in $N_b$, samples $N_s$, thinning $\Delta$}
+\KwOut{Posterior samples $\{\xi^{(t)},\sigma_\varepsilon^{2(t)}\}$}
+\BlankLine
+Initialise $\xi^{(0)}\leftarrow\mathbf{0}$,\;
+           $\sigma_\varepsilon^{2(0)}\leftarrow 10^{-3}$,\;
+           $\mathbf{d}_{\mathrm{cur}}\leftarrow G(\xi^{(0)})$\;
+\For{$t = 1$ \KwTo $N_b + N_s$}{
+  \textbf{Step 1 (pCN proposal for $\xi$)}\;
+  Draw $w\sim\N(0,I_M)$\;
+  Set $\xi^*\leftarrow\sqrt{1-\beta^2}\,\xi^{(t-1)}+\beta\,w$\;
+  Evaluate $\mathbf{d}^*\leftarrow G(\xi^*)$\;
+  Compute log-acceptance
+    $\Delta\ell = \log p(\mathbf{d}_{\mathrm{obs}}\,|\,\xi^*,\sigma^2)
+                 -\log p(\mathbf{d}_{\mathrm{obs}}\,|\,\xi^{(t-1)},\sigma^2)$\;
+  Draw $u\sim\mathrm{Unif}(0,1)$\;
+  \eIf{$\log u < \Delta\ell$}{
+    $\xi^{(t)}\leftarrow\xi^*$;\; $\mathbf{d}_{\mathrm{cur}}\leftarrow\mathbf{d}^*$
+  }{
+    $\xi^{(t)}\leftarrow\xi^{(t-1)}$
+  }
+  \BlankLine
+  \textbf{Step 2 (Gibbs draw for $\sigma_\varepsilon^2$)}\;
+  Set $\mathbf{r}\leftarrow\mathbf{d}_{\mathrm{obs}}-\mathbf{d}_{\mathrm{cur}}$\;
+  Draw $\sigma_\varepsilon^{2(t)}\sim\IG\!\bigl(\alpha_0+m/2,\;\beta_0+\norm{\mathbf{r}}^2/2\bigr)$
+  \tcp*{Exact conjugate draw -- no MH}
+  \BlankLine
+  \If{$t > N_b$ \textbf{and} $(t-N_b)\bmod\Delta = 0$}{
+    Store $(\xi^{(t)},\,\sigma_\varepsilon^{2(t)})$
+  }
+}
+\end{algorithm}
+
+\subsection{MCMC diagnostics}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig4_mcmc_diagnostics}
+  \caption{pCN-Gibbs MCMC diagnostics.
+    \textit{Left}: log-likelihood trace shows rapid mixing after the
+    burn-in period.
+    \textit{Centre}: noise variance $\sigma_\varepsilon^2$ trace mixes
+    around the true value (red dashed).
+    \textit{Right}: posterior histogram of $\sigma_\varepsilon^2$ overlaid
+    with the analytical InvGamma posterior at the posterior-mean $\xi$,
+    demonstrating that the Gibbs step is correctly implemented.}
+  \label{fig:mcmc_diag}
+\end{figure}
+
+% =====================================================================
+\section{Posterior Results}
+% =====================================================================
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{fig5_posterior_field}
+  \caption{Posterior vs.\ true permeability field.
+    \textit{Left}: log-permeability posterior mean (blue), 95\% pointwise
+    credible interval (shaded), and true field (red).  The prior RMSE
+    (mean field vs.\ truth) of 0.78 is reduced to 0.36 in the posterior.
+    Coverage of the 95\% CI is $\approx100\%$ for this case, indicating
+    slight over-coverage from the Gibbs-inferred noise variance.
+    \textit{Right}: posterior predictive pressure compared to the
+    noisy observations.  The uncertainty in $k(x)$ propagates to
+    uncertainty in $p(x)$.}
+  \label{fig:posterior}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.72\textwidth]{fig6_posterior_predictive}
+  \caption{Posterior predictive check in data space.
+    Blue squares show the posterior predictive mean $\pm2\sigma$;
+    red triangles are the noisy observations.
+    The posterior predictive brackets the observations, confirming
+    that the inferred field is consistent with the experiment.}
+  \label{fig:pred_check}
+\end{figure}
+
+\subsection{Credible intervals versus confidence intervals}
+
+A 95\% \emph{credible interval} $[a,b]$ satisfies
+$P(k(x)\in[a,b]\,|\,\mathbf{d}_{\mathrm{obs}})=0.95$---a direct
+probability statement about the unknown quantity given the data.
+This is distinct from a frequentist 95\% confidence interval, which
+would state that 95\% of \emph{repeated experiments} would produce
+intervals containing the true value.  In the UQ context, the Bayesian
+credible interval is the natural quantity: we have \emph{one}
+experiment and wish to quantify uncertainty given that experiment.
+
+% =====================================================================
+\section{Conclusions}
+% =====================================================================
+
+We have traced the full chain from textbook probability distributions to
+a working posterior sampler for 1D single-phase Darcy permeability
+inversion:
+
+\begin{enumerate}
+  \item The \textbf{Normal distribution} enters as the Gaussian likelihood
+    (measurement error model), the GRF prior on $\log k(x)$, and the
+    KL coefficients.
+
+  \item The \textbf{Inverse-Gamma} enters as the conjugate hyperprior
+    on $\sigma_\varepsilon^2$, enabling an exact Gibbs update that
+    replaces a Metropolis step.
+
+  \item The \textbf{Gamma} is the dual form (prior on precision),
+    equally valid and leading to identical posterior calculations.
+
+  \item The \textbf{KL expansion} compresses the infinite-dimensional
+    field inference into a finite-dimensional problem in $\R^M$, with
+    the prior $\xi\sim\N(0,I)$ enabling the dimension-robust pCN proposal.
+
+  \item The \textbf{pCN-Gibbs} sampler alternates between a
+    prior-reversible Metropolis step for $\xi$ and an exact conjugate
+    draw for $\sigma_\varepsilon^2$, producing samples from the full
+    joint posterior.
+\end{enumerate}
+
+The posterior log-$k$ RMSE (0.36) is less than half the prior RMSE (0.78),
+and the 95\% credible intervals comfortably cover the true field---concrete
+evidence that the 7 sensor readings carry meaningful information about the
+permeability structure.
+
+% =====================================================================
+\appendix
+\section{Complete Derivation of the NIG Joint Update}
+% =====================================================================
+
+Starting from the log-posterior:
+\[
+  \log p(\mu,\sigma^2\,|\,\mathbf{x})
+  \propto
+  -\frac{n+1}{2}\log\sigma^2
+  -\frac{1}{2\sigma^2}\!\left[
+    \sum(x_i-\mu)^2 + \kappa_0(\mu-\mu_0)^2 + 2\beta_0
+  \right].
+\]
+Define $\kappa_n=\kappa_0+n$ and $\mu_n=(\kappa_0\mu_0+n\bar{x})/\kappa_n$.
+Expanding the quadratic in $\mu$:
+\begin{align*}
+  \sum(x_i-\mu)^2 + \kappa_0(\mu-\mu_0)^2
+  &= \sum x_i^2 - 2n\bar{x}\mu + n\mu^2
+     + \kappa_0\mu^2 - 2\kappa_0\mu_0\mu + \kappa_0\mu_0^2 \\
+  &= \kappa_n\mu^2 - 2\kappa_n\mu_n\mu + (n\bar{x}^2+\kappa_0\mu_0^2-\kappa_n\mu_n^2) + S \\
+  &= \kappa_n(\mu-\mu_n)^2 + S + \frac{\kappa_0 n(\bar{x}-\mu_0)^2}{\kappa_n},
+\end{align*}
+where $S=\sum(x_i-\bar{x})^2$ and the last equality uses
+$n\bar{x}^2+\kappa_0\mu_0^2-\kappa_n\mu_n^2=\kappa_0 n(\bar{x}-\mu_0)^2/\kappa_n$
+(verified by direct expansion).
+
+Substituting:
+\[
+  \log p(\mu,\sigma^2\,|\,\mathbf{x})
+  \propto
+  -\frac{\kappa_n(\mu-\mu_n)^2}{2\sigma^2}
+  -\left(\alpha_0+\frac{n}{2}+1\right)\!\log\sigma^2
+  -\frac{\beta_0+S/2+\kappa_0 n(\bar{x}-\mu_0)^2/(2\kappa_n)}{\sigma^2}.
+\]
+This is the log of $\N(\mu\,|\,\mu_n,\sigma^2/\kappa_n)\cdot\IG(\sigma^2\,|\,\alpha_n,\beta_n)$
+with $\alpha_n,\beta_n$ as given in
+Eqs.~\eqref{eq:nig_joint_alpha}--\eqref{eq:nig_joint_beta}. \hfill$\square$
+
+% =====================================================================
+\section{The Gamma Distribution as Conjugate Prior for Precision:
+         Full Algebraic Derivation}
+\label{app:gamma_precision}
+% =====================================================================
+
+This appendix derives in full why $\Ga(\alpha_0,\beta_0)$ placed on the
+Gaussian \emph{precision} $\tau=1/\sigma^2$ produces a Gamma posterior.
+Every algebraic step is explicit.
+
+\subsection*{B.1\quad Setup}
+
+\paragraph{Model.}
+\[
+  x_i\,|\,\tau
+    \overset{\mathrm{i.i.d.}}{\sim}
+    \N\!\left(\mu,\,\frac{1}{\tau}\right),
+  \quad i=1,\ldots,n,
+  \qquad
+  \mu \text{ known}, \quad \tau>0 \text{ unknown}.
+\]
+\paragraph{Prior.}
+\[
+  \tau \sim \Ga(\alpha_0,\beta_0)
+  \qquad\Longrightarrow\qquad
+  p(\tau;\alpha_0,\beta_0)
+    = \frac{\beta_0^{\alpha_0}}{\Gamma(\alpha_0)}\,
+      \tau^{\alpha_0-1}\,e^{-\beta_0\tau},
+  \quad \tau>0.
+\]
+Here $\beta_0$ is the \emph{rate} (inverse scale), so
+$\E[\tau]=\alpha_0/\beta_0$ and $\mathrm{Mode}[\tau]=(\alpha_0-1)/\beta_0$
+for $\alpha_0>1$.
+
+\subsection*{B.2\quad Gaussian density rewritten in precision form}
+
+Starting from $\N(x;\mu,\sigma^2)$ and substituting $\tau=1/\sigma^2$:
+\begin{equation}
+  \N\!\left(x;\mu,\tfrac{1}{\tau}\right)
+  = \frac{1}{\sqrt{2\pi/\tau}}\exp\!\left(-\frac{(x-\mu)^2}{2/\tau}\right)
+  = \sqrt{\frac{\tau}{2\pi}}\;\exp\!\left(-\frac{\tau(x-\mu)^2}{2}\right).
+  \label{eq:gauss_prec}
+\end{equation}
+The variance $\sigma^2$ in the denominator has become the precision $\tau$
+in the numerator of the exponent.  This is the key structural fact: the
+likelihood is \textbf{linear in $\tau$ in the exponent}.
+
+\subsection*{B.3\quad The likelihood}
+
+\begin{align}
+  p(\mathbf{x}\,|\,\tau)
+  &= \prod_{i=1}^n \sqrt{\frac{\tau}{2\pi}}\,
+     \exp\!\left(-\frac{\tau(x_i-\mu)^2}{2}\right) \notag\\
+  &= (2\pi)^{-n/2}\;\tau^{n/2}\;
+     \exp\!\left(-\frac{\tau}{2}\sum_{i=1}^n(x_i-\mu)^2\right) \notag\\
+  &= (2\pi)^{-n/2}\;\tau^{n/2}\;\exp\!\left(-\frac{\mathrm{SS}}{2}\,\tau\right),
+  \label{eq:lik_prec}
+\end{align}
+where $\mathrm{SS}=\sum_{i=1}^n(x_i-\mu)^2$ is the sum of squared
+deviations from the known mean.
+
+The $\tau$-dependent part of \eqref{eq:lik_prec} is
+\[
+  \tau^{n/2}\,e^{-(\mathrm{SS}/2)\,\tau}.
+\]
+Compare this with the Gamma kernel $\tau^{\alpha_0-1}\,e^{-\beta_0\tau}$:
+both are a power of $\tau$ times $\exp(-\mathrm{const}\cdot\tau)$.
+
+\subsection*{B.4\quad Posterior derivation (kernel recognition)}
+
+Applying Bayes' theorem and dropping all $\tau$-free constants:
+\begin{align}
+  p(\tau\,|\,\mathbf{x})
+  &\propto p(\mathbf{x}\,|\,\tau)\cdot p(\tau) \notag\\[4pt]
+  &\propto \Bigl[\tau^{n/2}\,e^{-(\mathrm{SS}/2)\tau}\Bigr]
+           \;\cdot\;
+           \Bigl[\tau^{\alpha_0-1}\,e^{-\beta_0\tau}\Bigr] \notag\\[4pt]
+  &= \tau^{\,n/2\;+\;\alpha_0\;-\;1}
+     \cdot\exp\!\bigl(-\underbrace{(\beta_0+\mathrm{SS}/2)}_{\displaystyle\beta_n}\,\tau\bigr)
+     \notag\\[4pt]
+  &= \tau^{\,\underbrace{(\alpha_0+n/2)}_{\displaystyle\alpha_n}-1}
+     \cdot e^{-\beta_n\tau}.
+  \label{eq:gamma_post_kernel}
+\end{align}
+
+Expression \eqref{eq:gamma_post_kernel} is the \emph{unnormalised kernel}
+of $\Ga(\alpha_n,\beta_n)$.  Since the Gamma normalising constant
+$\beta_n^{\alpha_n}/\Gamma(\alpha_n)$ is uniquely determined by
+$(\alpha_n,\beta_n)$, we conclude immediately:
+
+\begin{tcolorbox}[colback=blue!5, colframe=blue!50!black,
+  title=Gamma-precision conjugate update, fontupper=\small]
+\[
+  \tau\,|\,\mathbf{x}_1,\ldots,\mathbf{x}_n
+  \;\sim\;
+  \Ga(\alpha_n,\beta_n)
+\]
+\vspace{-6pt}
+\begin{align}
+  \alpha_n &= \alpha_0 + \frac{n}{2}
+    \tag{shape: $\tfrac{1}{2}$ added per observation} \\[4pt]
+  \beta_n  &= \beta_0 + \frac{\mathrm{SS}}{2}
+    = \beta_0 + \frac{1}{2}\sum_{i=1}^n(x_i-\mu)^2
+    \tag{rate: squared deviations accumulate}
+\end{align}
+\end{tcolorbox}
+
+\subsection*{B.5\quad Why the exponents collapse: exponential family structure}
+
+Both distributions belong to the \emph{exponential family} in the natural
+parameter $\eta=-\tau$ (or equivalently, with sufficient statistic $T(\tau)=\tau$):
+
+\medskip
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+Distribution & Kernel & Natural param $\eta$ & Suff.\ stat $T$ \\
+\midrule
+$\Ga(\alpha_0,\beta_0)$ prior   & $\tau^{\alpha_0-1}e^{-\beta_0\tau}$ & $-\beta_0$ & $\tau$ \\
+Gaussian likelihood              & $\tau^{n/2}e^{-(\mathrm{SS}/2)\tau}$ & $-\mathrm{SS}/2$ & $\tau$ \\
+\midrule
+Product (posterior kernel)       & $\tau^{(\alpha_0+n/2)-1}e^{-(\beta_0+\mathrm{SS}/2)\tau}$ & $-(\beta_0+\tfrac{\mathrm{SS}}{2})$ & $\tau$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\medskip
+
+Multiplying two exponentials with the same sufficient statistic
+simply \emph{adds} the natural parameters:
+\[
+  e^{-\beta_0\tau}\cdot e^{-(\mathrm{SS}/2)\tau}
+  = e^{-(\beta_0+\mathrm{SS}/2)\tau}.
+\]
+This is the algebraic essence of conjugacy: the prior and likelihood share
+the same exponential structure in the parameter $\tau$, so their product
+stays in the same exponential family.
+
+\subsection*{B.6\quad Normalising constant and marginal likelihood}
+
+The full posterior normalisation gives the \emph{marginal likelihood}
+$p(\mathbf{x})$ for free:
+\begin{align}
+  p(\mathbf{x})
+  &= \int_0^\infty p(\mathbf{x}\,|\,\tau)\,p(\tau)\,\mathrm{d}\tau \notag\\
+  &= (2\pi)^{-n/2}\,\frac{\beta_0^{\alpha_0}}{\Gamma(\alpha_0)}
+     \int_0^\infty \tau^{\alpha_n-1}\,e^{-\beta_n\tau}\,\mathrm{d}\tau \notag\\
+  &= (2\pi)^{-n/2}\,\frac{\beta_0^{\alpha_0}}{\Gamma(\alpha_0)}
+     \cdot\frac{\Gamma(\alpha_n)}{\beta_n^{\alpha_n}},
+  \label{eq:marglik}
+\end{align}
+using $\int_0^\infty \tau^{\alpha_n-1}e^{-\beta_n\tau}\,\mathrm{d}\tau
+= \Gamma(\alpha_n)/\beta_n^{\alpha_n}$.
+Equation~\eqref{eq:marglik} is a product of Gamma and Student-t terms
+and is the quantity used in Bayesian model comparison.
+
+\subsection*{B.7\quad Sequential consistency}
+
+Suppose we process the $n$ observations one at a time.  After datum $x_1$:
+\[
+  \alpha_1 = \alpha_0 + \tfrac{1}{2}, \qquad
+  \beta_1  = \beta_0  + \tfrac{(x_1-\mu)^2}{2}.
+\]
+After datum $x_2$ (starting from $\Ga(\alpha_1,\beta_1)$):
+\[
+  \alpha_2 = \alpha_1 + \tfrac{1}{2} = \alpha_0 + 1, \qquad
+  \beta_2  = \beta_1  + \tfrac{(x_2-\mu)^2}{2}
+           = \beta_0  + \tfrac{(x_1-\mu)^2+(x_2-\mu)^2}{2}.
+\]
+After all $n$ data:
+\[
+  \alpha_n = \alpha_0 + \frac{n}{2}, \qquad
+  \beta_n  = \beta_0 + \frac{\sum_{i=1}^n(x_i-\mu)^2}{2}
+           = \beta_0 + \frac{\mathrm{SS}}{2}.
+\]
+This is identical to the batch update---the order of data presentation is irrelevant.
+This is sequentially consistent Bayesian updating.
+
+\subsection*{B.8\quad Pseudo-data interpretation}
+
+The prior $\Ga(\alpha_0,\beta_0)$ can be viewed as arising from
+$n_0=2\alpha_0$ \emph{imaginary} (pseudo-)~observations whose
+sum of squared deviations is $\mathrm{SS}_0=2\beta_0$.  Then the
+posterior after $n$ real observations is
+\[
+  \tau\,|\,\mathbf{x}
+  \;\sim\;
+  \Ga\!\left(\alpha_0+\frac{n}{2},\;
+              \beta_0+\frac{\mathrm{SS}}{2}\right)
+  \equiv
+  \Ga\!\left(\frac{n_0+n}{2},\;
+              \frac{\mathrm{SS}_0+\mathrm{SS}}{2}\right),
+\]
+exactly as if we had $n_0+n$ total observations with combined sum of
+squares $\mathrm{SS}_0+\mathrm{SS}$.  The prior encodes the same type
+of information as data; real data simply extends the pseudo-dataset.
+
+\subsection*{B.9\quad The dual InvGamma via change of variables}
+
+Since $\tau>0$, define $\sigma^2=1/\tau$.  The Jacobian is
+$\mathrm{d}\tau/\mathrm{d}(\sigma^2) = -1/(\sigma^2)^2 = -\sigma^{-4}$, so
+\begin{align}
+  p(\sigma^2)
+  &= p\!\left(\tau=\frac{1}{\sigma^2}\right)\cdot\left|\frac{\mathrm{d}\tau}{\mathrm{d}(\sigma^2)}\right|
+   = \frac{\beta^{\alpha}}{\Gamma(\alpha)}
+     \left(\frac{1}{\sigma^2}\right)^{\!\alpha-1}
+     e^{-\beta/\sigma^2}\cdot\frac{1}{\sigma^4} \notag\\
+  &= \frac{\beta^{\alpha}}{\Gamma(\alpha)}
+     \left(\sigma^2\right)^{-\alpha-1}
+     e^{-\beta/\sigma^2}.
+  \label{eq:invgamma_derivation}
+\end{align}
+This is exactly $\IG(\alpha,\beta)$.  Therefore:
+\[
+  \tau\sim\Ga(\alpha,\beta)
+  \;\;\Longleftrightarrow\;\;
+  \sigma^2=\frac{1}{\tau}\sim\IG(\alpha,\beta).
+\]
+The update formulas are identical in both parametrisations
+($\alpha_n=\alpha_0+n/2$, $\beta_n=\beta_0+\mathrm{SS}/2$);
+only the axis label changes from $\tau$ to $\sigma^2=1/\tau$.
+
+\medskip
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Parametrisation & Prior & Posterior \\
+\midrule
+Precision $\tau=1/\sigma^2$ & $\Ga(\alpha_0,\beta_0)$ & $\Ga(\alpha_0+n/2,\;\beta_0+\mathrm{SS}/2)$ \\
+Variance $\sigma^2=1/\tau$  & $\IG(\alpha_0,\beta_0)$ & $\IG(\alpha_0+n/2,\;\beta_0+\mathrm{SS}/2)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{B.10\quad Summary of the conjugacy argument}
+
+The proof reduces to one observation: the Gaussian likelihood
+$p(\mathbf{x}|\tau)\propto\tau^{n/2}e^{-(\mathrm{SS}/2)\tau}$ and
+the Gamma prior $p(\tau)\propto\tau^{\alpha_0-1}e^{-\beta_0\tau}$
+are both of the form $\tau^{c}\cdot e^{-d\tau}$.  Multiplying two such
+expressions yields another expression of the same form with
+updated exponent $c$ and rate $d$:
+\[
+  \underbrace{\tau^{\alpha_0-1}\,e^{-\beta_0\tau}}_{\text{prior}}
+  \;\times\;
+  \underbrace{\tau^{n/2}\,e^{-(\mathrm{SS}/2)\tau}}_{\text{likelihood}}
+  \;=\;
+  \tau^{(\alpha_0+n/2)-1}\,e^{-(\beta_0+\mathrm{SS}/2)\tau}
+  \;\;\propto\;\;
+  \underbrace{\Ga\!\left(\alpha_0+\tfrac{n}{2},\;\beta_0+\tfrac{\mathrm{SS}}{2}\right)}_{\text{posterior}}.
+\]
+The family is preserved because the product of two power-times-exponential
+functions is again a power-times-exponential function---and that is
+precisely the Gamma family.
+
+\end{document}
