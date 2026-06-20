@@ -722,6 +722,46 @@ acceptance ratio therefore only involves the likelihood ratio:
 where $\mathbf{r}=\mathbf{d}_{\mathrm{obs}}-G(\xi)$ and
 $\mathbf{r}^*=\mathbf{d}_{\mathrm{obs}}-G(\xi^*)$.
 
+\paragraph{Proof that prior and proposal ratios cancel.}
+We verify the two claims in turn.
+
+\textit{Claim 1: $\xi^*\sim\N(\mathbf{0},I_M)$ whenever $\xi\sim\N(\mathbf{0},I_M)$.}
+Since $\xi$ and $w$ are independent standard Gaussians and $\xi^*$ is an affine
+combination:
+\begin{align*}
+  \E[\xi^*] &= \sqrt{1-\beta^2}\,\E[\xi] + \beta\,\E[w] = \mathbf{0},\\
+  \mathrm{Cov}[\xi^*]
+    &= (1-\beta^2)\,I_M + \beta^2\,I_M = I_M.
+\end{align*}
+Hence $\xi^*\sim\N(\mathbf{0},I_M)$, identical to the prior on $\xi$.
+
+\textit{Claim 2: the joint density $p(\xi)\,q(\xi^*|\xi)$ is symmetric, so
+prior and proposal ratios cancel in the MH ratio.}
+The pCN proposal kernel is $q(\xi^*|\xi)=\N(\xi^*;\sqrt{1-\beta^2}\,\xi,\,\beta^2I)$.
+Expanding the squared norm:
+\begin{align*}
+  \|\xi^*-\sqrt{1-\beta^2}\,\xi\|^2
+  = \|\xi^*\|^2 - 2\sqrt{1-\beta^2}\,\xi^\top\!\xi^* + (1-\beta^2)\|\xi\|^2,
+\end{align*}
+so the full exponent of $p(\xi)\,q(\xi^*|\xi)$ is
+\begin{align*}
+  -\tfrac{1}{2}\|\xi\|^2
+  - \frac{\|\xi^*\|^2 - 2\sqrt{1-\beta^2}\,\xi^\top\!\xi^* + (1-\beta^2)\|\xi\|^2}%
+         {2\beta^2}
+  = -\frac{\|\xi\|^2 + \|\xi^*\|^2 - 2\sqrt{1-\beta^2}\,\xi^\top\!\xi^*}{2\beta^2}.
+\end{align*}
+This expression is \emph{symmetric} in $(\xi,\xi^*)$, so
+$p(\xi)\,q(\xi^*|\xi)=p(\xi^*)\,q(\xi|\xi^*)$.
+
+In the generic MH ratio:
+\[
+  A = \frac{p(\mathbf{d}|\xi^*)\cdot\overbrace{p(\xi^*)\,q(\xi|\xi^*)}^{=\,p(\xi)\,q(\xi^*|\xi)}}
+           {p(\mathbf{d}|\xi)\cdot p(\xi)\,q(\xi^*|\xi)},
+\]
+the prior--proposal product is identical in numerator and denominator and
+cancels, yielding $A = p(\mathbf{d}|\xi^*)/p(\mathbf{d}|\xi)$,
+which is Eq.~\eqref{eq:pcn_accept}.\hfill$\square$
+
 \paragraph{Dimension-robustness.}
 The acceptance rate depends only on the likelihood increment, not on $M$.
 The same $\beta$ works regardless of the number of KL modes.
