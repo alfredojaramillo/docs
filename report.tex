@@ -895,4 +895,258 @@ This is the log of $\N(\mu\,|\,\mu_n,\sigma^2/\kappa_n)\cdot\IG(\sigma^2\,|\,\al
 with $\alpha_n,\beta_n$ as given in
 Eqs.~\eqref{eq:nig_joint_alpha}--\eqref{eq:nig_joint_beta}. \hfill$\square$
 
+% =====================================================================
+\section{The Gamma Distribution as Conjugate Prior for Precision:
+         Full Algebraic Derivation}
+\label{app:gamma_precision}
+% =====================================================================
+
+This appendix derives in full why $\Ga(\alpha_0,\beta_0)$ placed on the
+Gaussian \emph{precision} $\tau=1/\sigma^2$ produces a Gamma posterior.
+Every algebraic step is explicit.
+
+\subsection*{B.1\quad Setup}
+
+\paragraph{Model.}
+\[
+  x_i\,|\,\tau
+    \overset{\mathrm{i.i.d.}}{\sim}
+    \N\!\left(\mu,\,\frac{1}{\tau}\right),
+  \quad i=1,\ldots,n,
+  \qquad
+  \mu \text{ known}, \quad \tau>0 \text{ unknown}.
+\]
+\paragraph{Prior.}
+\[
+  \tau \sim \Ga(\alpha_0,\beta_0)
+  \qquad\Longrightarrow\qquad
+  p(\tau;\alpha_0,\beta_0)
+    = \frac{\beta_0^{\alpha_0}}{\Gamma(\alpha_0)}\,
+      \tau^{\alpha_0-1}\,e^{-\beta_0\tau},
+  \quad \tau>0.
+\]
+Here $\beta_0$ is the \emph{rate} (inverse scale), so
+$\E[\tau]=\alpha_0/\beta_0$ and $\mathrm{Mode}[\tau]=(\alpha_0-1)/\beta_0$
+for $\alpha_0>1$.
+
+\subsection*{B.2\quad Gaussian density rewritten in precision form}
+
+Starting from $\N(x;\mu,\sigma^2)$ and substituting $\tau=1/\sigma^2$:
+\begin{equation}
+  \N\!\left(x;\mu,\tfrac{1}{\tau}\right)
+  = \frac{1}{\sqrt{2\pi/\tau}}\exp\!\left(-\frac{(x-\mu)^2}{2/\tau}\right)
+  = \sqrt{\frac{\tau}{2\pi}}\;\exp\!\left(-\frac{\tau(x-\mu)^2}{2}\right).
+  \label{eq:gauss_prec}
+\end{equation}
+The variance $\sigma^2$ in the denominator has become the precision $\tau$
+in the numerator of the exponent.  This is the key structural fact: the
+likelihood is \textbf{linear in $\tau$ in the exponent}.
+
+\subsection*{B.3\quad The likelihood}
+
+\begin{align}
+  p(\mathbf{x}\,|\,\tau)
+  &= \prod_{i=1}^n \sqrt{\frac{\tau}{2\pi}}\,
+     \exp\!\left(-\frac{\tau(x_i-\mu)^2}{2}\right) \notag\\
+  &= (2\pi)^{-n/2}\;\tau^{n/2}\;
+     \exp\!\left(-\frac{\tau}{2}\sum_{i=1}^n(x_i-\mu)^2\right) \notag\\
+  &= (2\pi)^{-n/2}\;\tau^{n/2}\;\exp\!\left(-\frac{\mathrm{SS}}{2}\,\tau\right),
+  \label{eq:lik_prec}
+\end{align}
+where $\mathrm{SS}=\sum_{i=1}^n(x_i-\mu)^2$ is the sum of squared
+deviations from the known mean.
+
+The $\tau$-dependent part of \eqref{eq:lik_prec} is
+\[
+  \tau^{n/2}\,e^{-(\mathrm{SS}/2)\,\tau}.
+\]
+Compare this with the Gamma kernel $\tau^{\alpha_0-1}\,e^{-\beta_0\tau}$:
+both are a power of $\tau$ times $\exp(-\mathrm{const}\cdot\tau)$.
+
+\subsection*{B.4\quad Posterior derivation (kernel recognition)}
+
+Applying Bayes' theorem and dropping all $\tau$-free constants:
+\begin{align}
+  p(\tau\,|\,\mathbf{x})
+  &\propto p(\mathbf{x}\,|\,\tau)\cdot p(\tau) \notag\\[4pt]
+  &\propto \Bigl[\tau^{n/2}\,e^{-(\mathrm{SS}/2)\tau}\Bigr]
+           \;\cdot\;
+           \Bigl[\tau^{\alpha_0-1}\,e^{-\beta_0\tau}\Bigr] \notag\\[4pt]
+  &= \tau^{\,n/2\;+\;\alpha_0\;-\;1}
+     \cdot\exp\!\bigl(-\underbrace{(\beta_0+\mathrm{SS}/2)}_{\displaystyle\beta_n}\,\tau\bigr)
+     \notag\\[4pt]
+  &= \tau^{\,\underbrace{(\alpha_0+n/2)}_{\displaystyle\alpha_n}-1}
+     \cdot e^{-\beta_n\tau}.
+  \label{eq:gamma_post_kernel}
+\end{align}
+
+Expression \eqref{eq:gamma_post_kernel} is the \emph{unnormalised kernel}
+of $\Ga(\alpha_n,\beta_n)$.  Since the Gamma normalising constant
+$\beta_n^{\alpha_n}/\Gamma(\alpha_n)$ is uniquely determined by
+$(\alpha_n,\beta_n)$, we conclude immediately:
+
+\begin{tcolorbox}[colback=blue!5, colframe=blue!50!black,
+  title=Gamma-precision conjugate update, fontupper=\small]
+\[
+  \tau\,|\,\mathbf{x}_1,\ldots,\mathbf{x}_n
+  \;\sim\;
+  \Ga(\alpha_n,\beta_n)
+\]
+\vspace{-6pt}
+\begin{align}
+  \alpha_n &= \alpha_0 + \frac{n}{2}
+    \tag{shape: $\tfrac{1}{2}$ added per observation} \\[4pt]
+  \beta_n  &= \beta_0 + \frac{\mathrm{SS}}{2}
+    = \beta_0 + \frac{1}{2}\sum_{i=1}^n(x_i-\mu)^2
+    \tag{rate: squared deviations accumulate}
+\end{align}
+\end{tcolorbox}
+
+\subsection*{B.5\quad Why the exponents collapse: exponential family structure}
+
+Both distributions belong to the \emph{exponential family} in the natural
+parameter $\eta=-\tau$ (or equivalently, with sufficient statistic $T(\tau)=\tau$):
+
+\medskip
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+Distribution & Kernel & Natural param $\eta$ & Suff.\ stat $T$ \\
+\midrule
+$\Ga(\alpha_0,\beta_0)$ prior   & $\tau^{\alpha_0-1}e^{-\beta_0\tau}$ & $-\beta_0$ & $\tau$ \\
+Gaussian likelihood              & $\tau^{n/2}e^{-(\mathrm{SS}/2)\tau}$ & $-\mathrm{SS}/2$ & $\tau$ \\
+\midrule
+Product (posterior kernel)       & $\tau^{(\alpha_0+n/2)-1}e^{-(\beta_0+\mathrm{SS}/2)\tau}$ & $-(\beta_0+\tfrac{\mathrm{SS}}{2})$ & $\tau$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\medskip
+
+Multiplying two exponentials with the same sufficient statistic
+simply \emph{adds} the natural parameters:
+\[
+  e^{-\beta_0\tau}\cdot e^{-(\mathrm{SS}/2)\tau}
+  = e^{-(\beta_0+\mathrm{SS}/2)\tau}.
+\]
+This is the algebraic essence of conjugacy: the prior and likelihood share
+the same exponential structure in the parameter $\tau$, so their product
+stays in the same exponential family.
+
+\subsection*{B.6\quad Normalising constant and marginal likelihood}
+
+The full posterior normalisation gives the \emph{marginal likelihood}
+$p(\mathbf{x})$ for free:
+\begin{align}
+  p(\mathbf{x})
+  &= \int_0^\infty p(\mathbf{x}\,|\,\tau)\,p(\tau)\,\mathrm{d}\tau \notag\\
+  &= (2\pi)^{-n/2}\,\frac{\beta_0^{\alpha_0}}{\Gamma(\alpha_0)}
+     \int_0^\infty \tau^{\alpha_n-1}\,e^{-\beta_n\tau}\,\mathrm{d}\tau \notag\\
+  &= (2\pi)^{-n/2}\,\frac{\beta_0^{\alpha_0}}{\Gamma(\alpha_0)}
+     \cdot\frac{\Gamma(\alpha_n)}{\beta_n^{\alpha_n}},
+  \label{eq:marglik}
+\end{align}
+using $\int_0^\infty \tau^{\alpha_n-1}e^{-\beta_n\tau}\,\mathrm{d}\tau
+= \Gamma(\alpha_n)/\beta_n^{\alpha_n}$.
+Equation~\eqref{eq:marglik} is a product of Gamma and Student-t terms
+and is the quantity used in Bayesian model comparison.
+
+\subsection*{B.7\quad Sequential consistency}
+
+Suppose we process the $n$ observations one at a time.  After datum $x_1$:
+\[
+  \alpha_1 = \alpha_0 + \tfrac{1}{2}, \qquad
+  \beta_1  = \beta_0  + \tfrac{(x_1-\mu)^2}{2}.
+\]
+After datum $x_2$ (starting from $\Ga(\alpha_1,\beta_1)$):
+\[
+  \alpha_2 = \alpha_1 + \tfrac{1}{2} = \alpha_0 + 1, \qquad
+  \beta_2  = \beta_1  + \tfrac{(x_2-\mu)^2}{2}
+           = \beta_0  + \tfrac{(x_1-\mu)^2+(x_2-\mu)^2}{2}.
+\]
+After all $n$ data:
+\[
+  \alpha_n = \alpha_0 + \frac{n}{2}, \qquad
+  \beta_n  = \beta_0 + \frac{\sum_{i=1}^n(x_i-\mu)^2}{2}
+           = \beta_0 + \frac{\mathrm{SS}}{2}.
+\]
+This is identical to the batch update---the order of data presentation is irrelevant.
+This is sequentially consistent Bayesian updating.
+
+\subsection*{B.8\quad Pseudo-data interpretation}
+
+The prior $\Ga(\alpha_0,\beta_0)$ can be viewed as arising from
+$n_0=2\alpha_0$ \emph{imaginary} (pseudo-)~observations whose
+sum of squared deviations is $\mathrm{SS}_0=2\beta_0$.  Then the
+posterior after $n$ real observations is
+\[
+  \tau\,|\,\mathbf{x}
+  \;\sim\;
+  \Ga\!\left(\alpha_0+\frac{n}{2},\;
+              \beta_0+\frac{\mathrm{SS}}{2}\right)
+  \equiv
+  \Ga\!\left(\frac{n_0+n}{2},\;
+              \frac{\mathrm{SS}_0+\mathrm{SS}}{2}\right),
+\]
+exactly as if we had $n_0+n$ total observations with combined sum of
+squares $\mathrm{SS}_0+\mathrm{SS}$.  The prior encodes the same type
+of information as data; real data simply extends the pseudo-dataset.
+
+\subsection*{B.9\quad The dual InvGamma via change of variables}
+
+Since $\tau>0$, define $\sigma^2=1/\tau$.  The Jacobian is
+$\mathrm{d}\tau/\mathrm{d}(\sigma^2) = -1/(\sigma^2)^2 = -\sigma^{-4}$, so
+\begin{align}
+  p(\sigma^2)
+  &= p\!\left(\tau=\frac{1}{\sigma^2}\right)\cdot\left|\frac{\mathrm{d}\tau}{\mathrm{d}(\sigma^2)}\right|
+   = \frac{\beta^{\alpha}}{\Gamma(\alpha)}
+     \left(\frac{1}{\sigma^2}\right)^{\!\alpha-1}
+     e^{-\beta/\sigma^2}\cdot\frac{1}{\sigma^4} \notag\\
+  &= \frac{\beta^{\alpha}}{\Gamma(\alpha)}
+     \left(\sigma^2\right)^{-\alpha-1}
+     e^{-\beta/\sigma^2}.
+  \label{eq:invgamma_derivation}
+\end{align}
+This is exactly $\IG(\alpha,\beta)$.  Therefore:
+\[
+  \tau\sim\Ga(\alpha,\beta)
+  \;\;\Longleftrightarrow\;\;
+  \sigma^2=\frac{1}{\tau}\sim\IG(\alpha,\beta).
+\]
+The update formulas are identical in both parametrisations
+($\alpha_n=\alpha_0+n/2$, $\beta_n=\beta_0+\mathrm{SS}/2$);
+only the axis label changes from $\tau$ to $\sigma^2=1/\tau$.
+
+\medskip
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Parametrisation & Prior & Posterior \\
+\midrule
+Precision $\tau=1/\sigma^2$ & $\Ga(\alpha_0,\beta_0)$ & $\Ga(\alpha_0+n/2,\;\beta_0+\mathrm{SS}/2)$ \\
+Variance $\sigma^2=1/\tau$  & $\IG(\alpha_0,\beta_0)$ & $\IG(\alpha_0+n/2,\;\beta_0+\mathrm{SS}/2)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{B.10\quad Summary of the conjugacy argument}
+
+The proof reduces to one observation: the Gaussian likelihood
+$p(\mathbf{x}|\tau)\propto\tau^{n/2}e^{-(\mathrm{SS}/2)\tau}$ and
+the Gamma prior $p(\tau)\propto\tau^{\alpha_0-1}e^{-\beta_0\tau}$
+are both of the form $\tau^{c}\cdot e^{-d\tau}$.  Multiplying two such
+expressions yields another expression of the same form with
+updated exponent $c$ and rate $d$:
+\[
+  \underbrace{\tau^{\alpha_0-1}\,e^{-\beta_0\tau}}_{\text{prior}}
+  \;\times\;
+  \underbrace{\tau^{n/2}\,e^{-(\mathrm{SS}/2)\tau}}_{\text{likelihood}}
+  \;=\;
+  \tau^{(\alpha_0+n/2)-1}\,e^{-(\beta_0+\mathrm{SS}/2)\tau}
+  \;\;\propto\;\;
+  \underbrace{\Ga\!\left(\alpha_0+\tfrac{n}{2},\;\beta_0+\tfrac{\mathrm{SS}}{2}\right)}_{\text{posterior}}.
+\]
+The family is preserved because the product of two power-times-exponential
+functions is again a power-times-exponential function---and that is
+precisely the Gamma family.
+
 \end{document}
