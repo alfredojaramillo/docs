@@ -144,6 +144,141 @@ by solving a specific subproblem.
   \label{fig:distributions}
 \end{figure}
 
+% ─── NEW 3.1 ──────────────────────────────────────────────────────────
+\subsection{What is a Conjugate Prior? (and Why Should You Care?)}
+\label{sec:conjugate_intro}
+
+\paragraph{The problem with Bayes' theorem in practice.}
+
+Bayes' theorem is easy to write down:
+\begin{equation}
+  p(\theta \mid \mathbf{x})
+  = \frac{p(\mathbf{x} \mid \theta)\, p(\theta)}{p(\mathbf{x})},
+  \qquad
+  p(\mathbf{x}) = \int p(\mathbf{x} \mid \theta)\, p(\theta)\, \mathrm{d}\theta.
+  \label{eq:bayes_general}
+\end{equation}
+The numerator is straightforward: multiply the likelihood by the prior.
+The headache is the denominator $p(\mathbf{x})$, called the
+\emph{marginal likelihood} or \emph{evidence}.  This is a normalising
+integral over the entire parameter space.  For a permeability field on even
+a modest 100-point grid, $\theta$ lives in $\R^{100}$ and this integral has
+no closed form.  In general, computing it requires MCMC, variational
+inference, or other expensive approximations.
+
+\paragraph{The conjugacy shortcut.}
+
+A conjugate prior is a choice of prior family that makes the denominator
+disappear from the calculation.
+
+\begin{definition}
+  A prior $p(\theta) \in \mathcal{F}$ is \textbf{conjugate} to the likelihood
+  $p(\mathbf{x} \mid \theta)$ if the posterior $p(\theta \mid \mathbf{x})$
+  belongs to the \emph{same parametric family} $\mathcal{F}$, with
+  updated hyperparameters.
+\end{definition}
+
+When a conjugate prior exists, Bayes' theorem collapses to a handful of
+arithmetic operations on the hyperparameters.  No integrals, no simulation,
+no approximation — the posterior is exact.
+
+\paragraph{A concrete example: inferring a coin's bias.}
+
+Flip a coin $n$ times and observe $h$ heads.  The Binomial likelihood for
+bias $\theta\in[0,1]$ is
+\[
+  p(h \mid \theta) = \binom{n}{h}\,\theta^h\,(1-\theta)^{n-h}.
+\]
+We need a prior on $\theta$.  The Beta family is conjugate:
+\[
+  \theta \sim \mathrm{Beta}(\alpha_0, \beta_0)
+  \qquad\Longrightarrow\qquad
+  p(\theta) \propto \theta^{\alpha_0 - 1}(1-\theta)^{\beta_0 - 1}.
+\]
+The prior and likelihood share the same \emph{kernel shape} — both are
+products of a power of $\theta$ and a power of $(1-\theta)$.
+Multiplying them (Bayes' numerator):
+\[
+  p(\theta \mid h)
+  \;\propto\;
+  \theta^{h + \alpha_0 - 1}\,(1-\theta)^{(n-h) + \beta_0 - 1}
+  \;=\;
+  \mathrm{Beta}(\alpha_0 + h,\;\beta_0 + (n-h)).
+\]
+The update rule is just addition:
+\begin{equation}
+  \alpha_n = \alpha_0 + h, \qquad \beta_n = \beta_0 + (n-h).
+  \label{eq:beta_update}
+\end{equation}
+No integral was evaluated.  The hyperparameters simply count successes and
+failures.  Crucially, $\alpha_0$ and $\beta_0$ have a natural interpretation
+as \emph{prior pseudo-counts}: imaginary heads and tails from before any
+real coin was flipped.  Starting with $\alpha_0=\beta_0=1$ (uniform prior)
+encodes complete ignorance; $\alpha_0=\beta_0=10$ encodes a strong
+expectation of a fair coin.
+
+\paragraph{Why conjugacy works: kernel matching.}
+
+The algebraic reason is \emph{shared exponential-family structure}.
+When the likelihood $p(\mathbf{x}\mid\theta)$, viewed as a function of
+$\theta$, has the same functional form as the prior, their product stays in
+the same family.  The dreaded normalising constant $p(\mathbf{x})$ is then
+just the known normalisation of that family, determined uniquely by the
+updated hyperparameters — so we never need to integrate.
+
+As a formula: if the prior kernel is $h(\theta)^{a_0}\,e^{-b_0\,t(\theta)}$
+and the likelihood kernel (in $\theta$) is $h(\theta)^{s}\,e^{-T\,t(\theta)}$,
+then the posterior kernel is $h(\theta)^{a_0+s}\,e^{-(b_0+T)\,t(\theta)}$ —
+the same shape, with parameters updated by simple addition.
+
+\paragraph{What happens without conjugacy.}
+
+Without conjugacy, the posterior has no closed form and must be approximated.
+The classic tools are:
+\begin{itemize}[nosep]
+  \item \textbf{MCMC} (e.g., Metropolis-Hastings, HMC): generates samples
+    from $p(\theta\mid\mathbf{x})$ without ever computing $p(\mathbf{x})$,
+    but can be slow to mix in high dimensions.
+  \item \textbf{Variational inference}: approximates the posterior by the
+    ``closest'' member of a tractable family (e.g., fully-factorised Gaussian),
+    trading exactness for speed.
+  \item \textbf{Laplace approximation}: fits a Gaussian at the posterior mode,
+    valid near the MAP point but misses multi-modality.
+\end{itemize}
+Conjugacy avoids all of this.
+
+\paragraph{Relevance to Darcy permeability inversion.}
+
+Three conjugate pairs appear in our Bayesian sampler, each doing a specific job:
+
+\begin{enumerate}
+  \item \textbf{Normal--Normal} (Section~\ref{sec:nn}): inferring the mean
+    $\mu$ of a Gaussian with known noise $\sigma$.  The posterior is a
+    precision-weighted average of the prior and the data --- data and prior
+    ``vote'', with weights proportional to how certain each is.
+
+  \item \textbf{Normal--Inverse-Gamma} (Section~\ref{sec:nig}): inferring
+    the variance $\sigma^2$ with the mean held fixed.  This is \emph{exactly}
+    the update used in the Gibbs step of our pCN-Gibbs sampler.  At every
+    MCMC iteration, the noise variance $\sigma_\varepsilon^2$ is drawn from
+    its exact closed-form posterior --- no Metropolis accept/reject step,
+    no tuning, no approximation.
+
+  \item \textbf{Normal--Normal-Inverse-Gamma} (Section~\ref{sec:nig_joint}):
+    inferring $\mu$ \emph{and} $\sigma^2$ simultaneously.  The marginal
+    posterior for $\mu$ is a Student-$t$ distribution, automatically
+    heavier-tailed than a Gaussian to reflect the additional uncertainty
+    from not knowing $\sigma^2$.
+\end{enumerate}
+
+The practical payoff of conjugacy is dramatic.  Because the InvGamma
+update gives a \emph{closed-form sample} for $\sigma_\varepsilon^2$,
+what would otherwise require an expensive inner MCMC loop reduces to a
+single line of arithmetic per outer iteration.  This is why UQ textbooks
+spend so much time on these three distributions before ever mentioning MCMC:
+conjugacy is the reason the Gibbs sampler is tractable.
+
+% ─── 3.2 onwards ──────────────────────────────────────────────────────
 \subsection{Normal (Gaussian) distribution}
 
 \begin{definition}
