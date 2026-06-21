@@ -197,14 +197,34 @@ We need a prior on $\theta$.  The Beta family is conjugate:
 \]
 The prior and likelihood share the same \emph{kernel shape} — both are
 products of a power of $\theta$ and a power of $(1-\theta)$.
-Multiplying them (Bayes' numerator):
+Multiplying them gives Bayes' unnormalised numerator:
 \[
   p(\theta \mid h)
   \;\propto\;
-  \theta^{h + \alpha_0 - 1}\,(1-\theta)^{(n-h) + \beta_0 - 1}
-  \;=\;
-  \mathrm{Beta}(\alpha_0 + h,\;\beta_0 + (n-h)).
+  \theta^{h + \alpha_0 - 1}\,(1-\theta)^{(n-h) + \beta_0 - 1}.
 \]
+
+The $\propto$ symbol hides the normalising constant (the quantity we said
+was intractable).  The crucial step is \textbf{kernel recognition}:
+the expression above has the same algebraic form as a Beta density,
+\[
+  \mathrm{Beta}(\theta;\alpha,\beta)
+  = \frac{\theta^{\alpha-1}(1-\theta)^{\beta-1}}{B(\alpha,\beta)},
+  \qquad
+  B(\alpha,\beta) = \frac{\Gamma(\alpha)\,\Gamma(\beta)}{\Gamma(\alpha+\beta)},
+\]
+with $\alpha = \alpha_0+h$ and $\beta = \beta_0+(n-h)$.
+The normalising constant $B(\alpha,\beta)$ is a \emph{known function} of the
+parameters alone — so once we identify the kernel shape and read off the
+updated $(\alpha,\beta)$, the full exact distribution is pinned down with no
+integration required:
+\[
+  p(\theta \mid h) = \mathrm{Beta}(\alpha_0 + h,\;\beta_0 + (n-h)). \qquad\textit{(exact)}
+\]
+This is the conjugacy payoff: the $\propto$ step is trivial (multiply
+likelihood by prior); the ``hard'' step of finding $p(\mathbf{x})$ reduces
+to simply reading a normalisation constant from a table.
+
 The update rule is just addition:
 \begin{equation}
   \alpha_n = \alpha_0 + h, \qquad \beta_n = \beta_0 + (n-h).
