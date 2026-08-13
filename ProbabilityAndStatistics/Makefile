@@ -1,4 +1,4 @@
-MAIN = main
+MAIN = probability-and-statistics
 
 .PHONY: all clean cleanall
 

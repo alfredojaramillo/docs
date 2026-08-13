@@ -1,4 +1,4 @@
-MAIN = main
+MAIN = measure-theory
 
 .PHONY: all clean cleanall
 
