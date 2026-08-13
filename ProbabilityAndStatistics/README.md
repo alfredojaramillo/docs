@@ -6,7 +6,7 @@ LaTeX notes developing the likelihood function from the binomial example.
 
 ```
 .
-├── main.tex                          top-level document
+├── probability-and-statistics.tex    top-level document
 ├── preamble.tex                      packages + notation macros
 ├── sections/
 │   ├── 01-binomial-shape.tex         shape of L(q | v, n); log-concavity; MLE q = v/n
@@ -25,7 +25,7 @@ everywhere.
 ## Build
 
 ```
-make          # compile to main.pdf via latexmk
+make          # compile to probability-and-statistics.pdf via latexmk
 make clean    # remove build artifacts, keep the PDF
 make cleanall # remove build artifacts and the PDF
 ```

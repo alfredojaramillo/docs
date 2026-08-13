@@ -8,7 +8,7 @@ expectation).
 
 ```
 .
-├── main.tex                              top-level document
+├── measure-theory.tex                    top-level document
 ├── preamble.tex                          packages + notation macros
 ├── sections/
 │   ├── 01-absolute-continuity.tex        ≪ and ⊥; ε–δ form; Jordan decomposition
@@ -28,7 +28,7 @@ density $f(x \mid \theta)$ is exactly such a derivative.
 ## Build
 
 ```
-make          # compile to main.pdf via latexmk
+make          # compile to measure-theory.pdf via latexmk
 make clean    # remove build artifacts, keep the PDF
 make cleanall # remove build artifacts and the PDF
 ```
