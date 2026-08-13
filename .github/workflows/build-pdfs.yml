@@ -1,10 +1,10 @@
 name: Build PDFs
 
 # Compile the LaTeX note projects and (1) publish the resulting PDFs as
-# downloadable build artifacts and (2) on main, publish them to the gh-pages
-# branch so GitHub Pages serves them at a public URL. The PDFs are not tracked
-# in git; this workflow is how a rendered copy is obtained without a local TeX
-# install.
+# downloadable build artifacts and (2) on main, deploy them to GitHub Pages
+# (via the GitHub Actions deployment, no gh-pages branch) so they are served
+# at a public URL. The PDFs are not tracked in git; this workflow is how a
+# rendered copy is obtained without a local TeX install.
 
 on:
   push:
@@ -22,6 +22,11 @@ on:
 
 permissions:
   contents: read
+
+# Allow one concurrent Pages deployment; don't cancel an in-progress one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -53,16 +58,23 @@ jobs:
           path: ${{ matrix.dir }}/*.pdf
           if-no-files-found: error
 
-  publish:
-    # Publish the compiled PDFs to the gh-pages branch (public download links).
-    # Runs only for main — never for pull requests.
-    name: Publish to gh-pages
+  deploy:
+    # Deploy the compiled PDFs to GitHub Pages. main only, never on PRs.
+    name: Deploy to GitHub Pages
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Configure Pages
+        # Enables Pages with the "GitHub Actions" source if not already enabled.
+        uses: actions/configure-pages@v5
+
       - name: Download compiled PDFs
         uses: actions/download-artifact@v4
         with:
@@ -90,9 +102,11 @@ jobs:
           echo "--- site contents ---"
           ls -l site
 
-      - name: Publish to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./site
-          force_orphan: true
+          path: ./site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
