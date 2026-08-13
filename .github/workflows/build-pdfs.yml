@@ -1,8 +1,10 @@
 name: Build PDFs
 
-# Compile the LaTeX note projects and publish the resulting PDFs as
-# downloadable build artifacts. The PDFs are not tracked in git; this
-# workflow is how a rendered copy is obtained without a local TeX install.
+# Compile the LaTeX note projects and (1) publish the resulting PDFs as
+# downloadable build artifacts and (2) on main, publish them to the gh-pages
+# branch so GitHub Pages serves them at a public URL. The PDFs are not tracked
+# in git; this workflow is how a rendered copy is obtained without a local TeX
+# install.
 
 on:
   push:
@@ -50,3 +52,47 @@ jobs:
           name: ${{ matrix.dir }}
           path: ${{ matrix.dir }}/*.pdf
           if-no-files-found: error
+
+  publish:
+    # Publish the compiled PDFs to the gh-pages branch (public download links).
+    # Runs only for main — never for pull requests.
+    name: Publish to gh-pages
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download compiled PDFs
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Assemble site
+        run: |
+          set -euo pipefail
+          mkdir -p site
+          # download-artifact places each artifact under artifacts/<name>/
+          find artifacts -name '*.pdf' -exec cp {} site/ \;
+          {
+            echo '<!doctype html>'
+            echo '<html lang="en"><head><meta charset="utf-8">'
+            echo '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            echo '<title>Notes</title>'
+            echo '<style>body{font-family:system-ui,sans-serif;max-width:40rem;margin:3rem auto;padding:0 1rem;line-height:1.5}h1{font-size:1.4rem}li{margin:.4rem 0}</style>'
+            echo '</head><body>'
+            echo '<h1>Compiled notes</h1><ul>'
+            for f in $(cd site && ls *.pdf | sort); do
+              echo "<li><a href=\"$f\">$f</a></li>"
+            done
+            echo '</ul></body></html>'
+          } > site/index.html
+          echo "--- site contents ---"
+          ls -l site
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          force_orphan: true
