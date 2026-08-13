@@ -1,0 +1,51 @@
+\section{PMF and likelihood as slices of one surface}
+\label{sec:slices}
+
+The likelihood is not \emph{computed} from the PMF by applying an operation; it
+\emph{is} the PMF, with the roles of argument and parameter exchanged.
+``Same functional form'' is not a derivation and not a coincidence --- it is the
+definition of the likelihood function.
+
+Fix $n$ and consider the single bivariate function
+\begin{equation}
+  g(v, q) = \binom{n}{v} q^v (1-q)^{n-v},
+  \qquad (v, q) \in \{0,1,\dots,n\} \times [0,1].
+\end{equation}
+The PMF and the likelihood are two orthogonal slices of this one surface:
+\begin{itemize}[nosep]
+  \item Fix $q$, let $v$ vary over $\{0,\dots,n\}$: this is the PMF
+    $\dens_\Upsilon(v; q, n)$, a slice along the discrete axis.
+  \item Fix the observed $v$, let $q$ vary over $[0,1]$: this is
+    $\like(q \given v, n)$, a slice along the continuous axis.
+\end{itemize}
+So the ``computation'' is only: substitute the observed $v$ and read what
+remains as a function of $q$. The binomial coefficient and both power terms stay
+algebraically identical, which is why the two expressions are typographically
+the same. The discrete-versus-continuous distinction is entirely about which
+axis was left free: $v$ ranges over a finite set, $q$ over a continuum.
+
+\paragraph{Pointwise equality is not identity of objects.}
+The two slices normalize on different axes. Across the discrete axis the PMF
+sums to $1$ for every $q$, by the binomial theorem:
+\begin{equation}
+  \sum_{v=0}^{n} g(v, q) = \bigl(q + (1-q)\bigr)^n = 1.
+\end{equation}
+Across the continuous axis the likelihood integrates to
+\begin{equation}
+  \int_0^1 g(v, q)\, dq
+  = \binom{n}{v}\, \Betafn(v+1,\, n-v+1)
+  = \binom{n}{v}\, \frac{v!\,(n-v)!}{(n+1)!}
+  = \frac{1}{n+1},
+  \label{eq:lik-integral}
+\end{equation}
+independent of $v$, and in particular $\neq 1$. Thus $\like$ is not a density in
+$q$; this is exactly why maximizing it, rather than integrating it, is the
+sensible operation, and why turning it into a density requires the Beta
+normalization.
+
+\begin{remark}
+That the integral \eqref{eq:lik-integral} equals $\tfrac{1}{n+1}$ for every $v$
+is the statement that a uniform prior on $q$ induces a uniform prior-predictive
+on the count $v \in \{0,\dots,n\}$ --- the $\mathrm{Beta}(1,1)$--Binomial edge
+case.
+\end{remark}
