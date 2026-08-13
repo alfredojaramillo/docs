@@ -1,0 +1,35 @@
+% preamble.tex — shared packages and notation macros (measure theory notes)
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage[margin=1in]{geometry}
+\usepackage[expansion=false]{microtype}
+\usepackage{enumitem}
+\usepackage[colorlinks=true,linkcolor=black,urlcolor=blue,citecolor=black]{hyperref}
+
+% ---- theorem environments ----
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+% ---- notation ----
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\salg}{\mathcal{A}}                 % sigma-algebra
+\newcommand{\Xset}{X}                            % underlying set
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\ind}{\mathbf{1}}                    % indicator
+\newcommand{\RN}[2]{\frac{d #1}{d #2}}           % Radon-Nikodym derivative
+\newcommand{\abscont}{\ll}                        % absolute continuity
+\newcommand{\sing}{\perp}                         % mutual singularity
+\newcommand{\given}{\mid}                         % conditioning bar
+\newcommand{\dens}{f}                             % density / pmf (cf. likelihood notes)
+\newcommand{\restr}{\mathord{\restriction}}      % restriction of a measure
+\DeclareMathOperator{\supp}{supp}

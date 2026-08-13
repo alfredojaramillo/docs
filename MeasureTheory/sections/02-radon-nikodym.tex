@@ -1,0 +1,104 @@
+\section{The Radon--Nikodym theorem}
+\label{sec:radon-nikodym}
+
+The theorem says that absolute continuity is not merely a null-set condition:
+whenever $\nu \abscont \mu$, the measure $\nu$ is obtained from $\mu$ by
+integrating a density. It is the converse to the elementary fact that
+$A \mapsto \int_A f\,d\mu$ defines a measure absolutely continuous with respect
+to $\mu$.
+
+\begin{theorem}[Radon--Nikodym]
+\label{thm:rn}
+Let $\mu$ and $\nu$ be $\sigma$-finite measures on $(\Xset, \salg)$ with
+$\nu \abscont \mu$. Then there exists a measurable function
+$f : \Xset \to [0, \infty)$ such that
+\begin{equation}
+  \nu(A) = \int_A f \, d\mu
+  \qquad \text{for all } A \in \salg.
+  \label{eq:rn}
+\end{equation}
+The function $f$ is unique up to $\mu$-a.e.\ equality. It is called the
+\emph{Radon--Nikodym derivative} of $\nu$ with respect to $\mu$ and written
+\begin{equation}
+  f = \RN{\nu}{\mu}.
+\end{equation}
+\end{theorem}
+
+\begin{remark}[Why $\sigma$-finiteness is needed]
+Take $\mu$ the counting measure and $\nu$ the Lebesgue measure on $[0,1]$. Then
+$\nu \abscont \mu$ (the only $\mu$-null set is $\emptyset$), yet no $f$
+satisfies \eqref{eq:rn}: it would need $\int_{\{x\}} f\,d\mu = f(x) = \nu(\{x\})
+= 0$ for every $x$, forcing $f \equiv 0$ and hence $\nu \equiv 0$. Counting
+measure is not $\sigma$-finite on an uncountable space, and the theorem fails.
+\end{remark}
+
+\begin{remark}[The von Neumann proof]
+The slick proof avoids constructing $f$ by hand. Assume $\mu, \nu$ finite, set
+$\rho = \mu + \nu$, and consider the bounded linear functional
+$g \mapsto \int g \, d\nu$ on the Hilbert space $L^2(\rho)$. By Riesz
+representation it equals $\int g h \, d\rho$ for some $h \in L^2(\rho)$; algebra
+on \eqref{eq:rn}-type identities shows $0 \le h < 1$ $\mu$-a.e.\ (this uses
+$\nu \abscont \mu$), and $f = h / (1 - h)$ is the required derivative. The
+$\sigma$-finite case follows by exhausting $\Xset$ with finite pieces.
+\end{remark}
+
+\subsection{The calculus of Radon--Nikodym derivatives}
+
+The derivative notation is justified by the following rules, each holding
+$\mu$- (respectively $\lambda$-) almost everywhere. They are what make
+$\RN{\nu}{\mu}$ behave like an ordinary derivative.
+
+\begin{proposition}[Linearity]
+\label{prop:rn-linear}
+If $\nu_1, \nu_2 \abscont \mu$ are $\sigma$-finite, then
+$\nu_1 + \nu_2 \abscont \mu$ and
+\begin{equation}
+  \RN{(\nu_1 + \nu_2)}{\mu} = \RN{\nu_1}{\mu} + \RN{\nu_2}{\mu}
+  \qquad \mu\text{-a.e.}
+\end{equation}
+\end{proposition}
+
+\begin{proposition}[Change of variables]
+\label{prop:rn-integration}
+Let $\nu \abscont \mu$ be $\sigma$-finite with density $f = \RN{\nu}{\mu}$. For
+every measurable $g : \Xset \to [0, \infty]$,
+\begin{equation}
+  \int_\Xset g \, d\nu = \int_\Xset g \, f \, d\mu
+  = \int_\Xset g \, \RN{\nu}{\mu} \, d\mu.
+  \label{eq:rn-cov}
+\end{equation}
+The identity extends to $\nu$-integrable $g$ of arbitrary sign.
+\end{proposition}
+
+\begin{proof}[Proof idea]
+Equation \eqref{eq:rn} is exactly \eqref{eq:rn-cov} for indicators
+$g = \ind_A$. Extend by linearity to simple functions, then by monotone
+convergence to nonnegative measurable $g$, then split $g = g^+ - g^-$ for the
+signed case.
+\end{proof}
+
+\begin{proposition}[Chain rule]
+\label{prop:rn-chain}
+If $\nu \abscont \mu \abscont \lambda$ with all three $\sigma$-finite, then
+$\nu \abscont \lambda$ and
+\begin{equation}
+  \RN{\nu}{\lambda} = \RN{\nu}{\mu} \, \RN{\mu}{\lambda}
+  \qquad \lambda\text{-a.e.}
+  \label{eq:rn-chain}
+\end{equation}
+In particular, if $\mu \abscont \nu$ and $\nu \abscont \mu$ (equivalent
+measures) then $\RN{\nu}{\mu}$ is strictly positive $\mu$-a.e.\ and
+\begin{equation}
+  \RN{\mu}{\nu} = \left( \RN{\nu}{\mu} \right)^{-1}
+  \qquad \mu\text{-a.e.}
+\end{equation}
+\end{proposition}
+
+\begin{proof}[Proof idea]
+Apply Proposition~\ref{prop:rn-integration} with $g = \ind_A \, \RN{\nu}{\mu}$
+and the density $\RN{\mu}{\lambda}$:
+$\nu(A) = \int_A \RN{\nu}{\mu}\,d\mu = \int_A \RN{\nu}{\mu}\,\RN{\mu}{\lambda}\,
+d\lambda$, so the product is a $\lambda$-density for $\nu$; uniqueness in
+Theorem~\ref{thm:rn} gives \eqref{eq:rn-chain}. The reciprocal rule is the case
+$\lambda = \nu$, where $\RN{\nu}{\nu} = 1$.
+\end{proof}
