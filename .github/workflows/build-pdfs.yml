@@ -1,0 +1,52 @@
+name: Build PDFs
+
+# Compile the LaTeX note projects and publish the resulting PDFs as
+# downloadable build artifacts. The PDFs are not tracked in git; this
+# workflow is how a rendered copy is obtained without a local TeX install.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ProbabilityAndStatistics/**'
+      - 'MeasureTheory/**'
+      - '.github/workflows/build-pdfs.yml'
+  pull_request:
+    paths:
+      - 'ProbabilityAndStatistics/**'
+      - 'MeasureTheory/**'
+      - '.github/workflows/build-pdfs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dir: ProbabilityAndStatistics
+            root: probability-and-statistics.tex
+          - dir: MeasureTheory
+            root: measure-theory.tex
+    name: ${{ matrix.dir }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compile ${{ matrix.root }}
+        uses: xu-cheng/latex-action@v3
+        with:
+          working_directory: ${{ matrix.dir }}
+          root_file: ${{ matrix.root }}
+          latexmk_shell_escape: false
+
+      - name: Upload PDF
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.dir }}
+          path: ${{ matrix.dir }}/*.pdf
+          if-no-files-found: error
