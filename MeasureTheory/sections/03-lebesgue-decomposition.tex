@@ -1,0 +1,78 @@
+\section{The Lebesgue decomposition and two instances}
+\label{sec:lebesgue}
+
+Radon--Nikodym handles the absolutely continuous case. The Lebesgue
+decomposition theorem says that this case, together with the singular one, is
+all there is: any $\sigma$-finite measure splits uniquely into an
+$\RN{\cdot}{\mu}$-representable part and a part concentrated where $\mu$ is not.
+
+\begin{theorem}[Lebesgue decomposition]
+\label{thm:lebesgue}
+Let $\mu$ and $\nu$ be $\sigma$-finite measures on $(\Xset, \salg)$. There is a
+unique pair of $\sigma$-finite measures $\nu_{\mathrm{ac}}, \nu_{\mathrm{s}}$
+with
+\begin{equation}
+  \nu = \nu_{\mathrm{ac}} + \nu_{\mathrm{s}},
+  \qquad \nu_{\mathrm{ac}} \abscont \mu,
+  \qquad \nu_{\mathrm{s}} \sing \mu.
+  \label{eq:lebesgue}
+\end{equation}
+Consequently $\nu_{\mathrm{ac}}$ has a density $\RN{\nu_{\mathrm{ac}}}{\mu}$, and
+one writes $\RN{\nu}{\mu} := \RN{\nu_{\mathrm{ac}}}{\mu}$ for the
+Radon--Nikodym part even when $\nu \not\abscont \mu$.
+\end{theorem}
+
+\begin{proof}[Proof idea]
+Apply Theorem~\ref{thm:rn} to $\nu$ against the reference $\rho = \mu + \nu$:
+$\nu \abscont \rho$, so $\nu = \int h \, d\rho$ for some $0 \le h \le 1$. The set
+$E = \{h = 1\}$ carries the singular part $\nu_{\mathrm{s}} = \nu\restr E$, its
+complement the absolutely continuous part. Uniqueness follows because a measure
+that is both $\abscont \mu$ and $\sing \mu$ must vanish.
+\end{proof}
+
+\begin{corollary}
+$\nu \abscont \mu$ if and only if $\nu_{\mathrm{s}} = 0$; and $\nu \sing \mu$ if
+and only if $\nu_{\mathrm{ac}} = 0$. The two notions of
+Section~\ref{sec:abscont} are exactly the vanishing of one summand.
+\end{corollary}
+
+\paragraph{Instance 1: probability densities.}
+Let $\Prob$ be the law of a real random variable $\Xset$ and let $\mu$ be
+Lebesgue measure on $\R$. The distribution decomposes (Theorem~\ref{thm:lebesgue})
+into an absolutely continuous part with a probability density function
+$p = \RN{\Prob_{\mathrm{ac}}}{\mu}$, an atomic part (a sum of point masses,
+singular w.r.t.\ $\mu$), and a singular continuous part (e.g.\ the Cantor
+distribution). ``$X$ has density $p$'' is precisely the statement
+$\Prob \abscont \mu$ with $\RN{\Prob}{\mu} = p$; then, by
+Proposition~\ref{prop:rn-integration},
+\begin{equation}
+  \E[g(X)] = \int_\R g \, d\Prob = \int_\R g(x)\, p(x)\, dx.
+\end{equation}
+This is the exact sense in which the likelihood notes' ``density'' is a
+Radon--Nikodym derivative: there $\dens(x \given \theta) = \RN{P_\theta}{\mu}$.
+
+\paragraph{Instance 2: conditional expectation.}
+Let $(\Omega, \salg, \Prob)$ be a probability space, $\mathcal{G} \subseteq
+\salg$ a sub-$\sigma$-algebra, and $X \ge 0$ integrable. Define a measure on
+$\mathcal{G}$ by
+\begin{equation}
+  \nu(G) = \int_G X \, d\Prob, \qquad G \in \mathcal{G}.
+\end{equation}
+Then $\nu \abscont \Prob\restr\mathcal{G}$ (a $\Prob$-null set in $\mathcal{G}$
+is $\nu$-null), so Radon--Nikodym supplies a $\mathcal{G}$-measurable density.
+
+\begin{definition}[Conditional expectation]
+The \emph{conditional expectation} of $X$ given $\mathcal{G}$ is
+\begin{equation}
+  \E[X \mid \mathcal{G}] = \RN{\nu}{\ \Prob\restr\mathcal{G}},
+\end{equation}
+the Radon--Nikodym derivative on $\mathcal{G}$. It is the unique (up to
+$\Prob$-a.s.) $\mathcal{G}$-measurable random variable with
+$\int_G \E[X \mid \mathcal{G}] \, d\Prob = \int_G X \, d\Prob$ for all
+$G \in \mathcal{G}$.
+\end{definition}
+
+Existence and a.s.-uniqueness of conditional expectation are therefore not
+separate theorems: they are Theorem~\ref{thm:rn} read on the sub-$\sigma$-algebra
+$\mathcal{G}$. The defining averaging identity is the special case $A = G$ of
+\eqref{eq:rn}.

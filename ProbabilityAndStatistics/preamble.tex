@@ -1,0 +1,32 @@
+% preamble.tex — shared packages and notation macros
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage[margin=1in]{geometry}
+\usepackage[expansion=false]{microtype}
+\usepackage{enumitem}
+\usepackage[colorlinks=true,linkcolor=black,urlcolor=blue,citecolor=black]{hyperref}
+
+% ---- theorem environments ----
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+\newtheorem{example}[definition]{Example}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+% ---- notation ----
+% Lebesgue measure: mu, per Alfredo's convention (never lambda)
+\newcommand{\Leb}{\mu}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Xspace}{\mathcal{X}}           % sample space
+\newcommand{\salg}{\mathcal{A}}             % sigma-algebra on the sample space
+\newcommand{\like}{L}                       % likelihood
+\newcommand{\loglike}{\ell}                 % log-likelihood
+\newcommand{\dens}{f}                        % density / pmf
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator{\Betafn}{B}            % Beta function
+\newcommand{\RN}[2]{\frac{d #1}{d #2}}      % Radon-Nikodym derivative
+\newcommand{\ind}{\mathbf{1}}
+\newcommand{\given}{\mid}

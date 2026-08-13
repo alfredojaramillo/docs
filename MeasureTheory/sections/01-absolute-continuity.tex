@@ -1,0 +1,88 @@
+\section{Absolute continuity and singularity}
+\label{sec:abscont}
+
+Throughout, $(\Xset, \salg)$ is a measurable space and all measures are defined
+on $\salg$. A measure $\mu$ is \emph{$\sigma$-finite} if $\Xset = \bigcup_n A_n$
+with $A_n \in \salg$ and $\mu(A_n) < \infty$; $\sigma$-finiteness is the standing
+hypothesis under which the theorems below hold in full generality.
+
+\begin{definition}[Absolute continuity]
+\label{def:abscont}
+Let $\mu, \nu$ be measures on $(\Xset, \salg)$. We say $\nu$ is
+\emph{absolutely continuous} with respect to $\mu$, written $\nu \abscont \mu$,
+if
+\begin{equation}
+  \mu(A) = 0 \;\Longrightarrow\; \nu(A) = 0
+  \qquad \text{for every } A \in \salg.
+\end{equation}
+Equivalently: every $\mu$-null set is $\nu$-null.
+\end{definition}
+
+\begin{definition}[Mutual singularity]
+\label{def:singular}
+The measures $\mu, \nu$ are \emph{mutually singular}, written $\mu \sing \nu$, if
+there is a set $E \in \salg$ with
+\begin{equation}
+  \mu(E) = 0 \qquad \text{and} \qquad \nu(\Xset \setminus E) = 0,
+\end{equation}
+i.e.\ they live on disjoint sets: $\nu$ is carried by $E$ and $\mu$ by its
+complement.
+\end{definition}
+
+Absolute continuity and singularity are the two extremes. The Lebesgue
+decomposition of Section~\ref{sec:lebesgue} shows every $\sigma$-finite $\nu$
+splits uniquely into a piece of each type relative to $\mu$.
+
+\paragraph{The \texorpdfstring{$\varepsilon$--$\delta$}{epsilon-delta} form.}
+For \emph{finite} $\nu$, the set-theoretic Definition~\ref{def:abscont} is
+equivalent to an analytic continuity statement, which is where the name comes
+from.
+
+\begin{proposition}[$\varepsilon$--$\delta$ characterization]
+\label{prop:eps-delta}
+Let $\nu$ be a finite measure. Then $\nu \abscont \mu$ if and only if for every
+$\varepsilon > 0$ there exists $\delta > 0$ such that
+\begin{equation}
+  A \in \salg,\ \mu(A) < \delta \;\Longrightarrow\; \nu(A) < \varepsilon.
+  \label{eq:eps-delta}
+\end{equation}
+\end{proposition}
+
+\begin{proof}[Proof sketch]
+The $\varepsilon$--$\delta$ condition trivially forces $\mu(A)=0 \Rightarrow
+\nu(A) = 0$. Conversely, if \eqref{eq:eps-delta} failed there would be
+$\varepsilon_0 > 0$ and sets $A_n$ with $\mu(A_n) < 2^{-n}$ but
+$\nu(A_n) \ge \varepsilon_0$. Put $A = \limsup_n A_n$. By Borel--Cantelli on
+$\mu$, $\mu(A) = 0$, while $\nu(A) \ge \varepsilon_0$ by finiteness of $\nu$ and
+reverse Fatou, contradicting $\nu \abscont \mu$.
+\end{proof}
+
+\begin{remark}
+Finiteness matters in Proposition~\ref{prop:eps-delta}. With
+$\mu = $ Lebesgue measure and $\nu(A) = \int_A x^2\,dx$ on $\R$, one has
+$\nu \abscont \mu$ (Definition~\ref{def:abscont}) yet no single $\delta$ works
+uniformly for the interval family $\{[n, n+\delta]\}$, because $\nu$ is not
+finite. The remedy is to test \eqref{eq:eps-delta} on sets of finite $\nu$-measure.
+\end{remark}
+
+\paragraph{Signed measures and the Jordan decomposition.}
+A \emph{signed measure} $\nu$ assigns values in $(-\infty, +\infty]$ (or
+$[-\infty, +\infty)$) and is countably additive. The Hahn decomposition gives a
+partition $\Xset = P \sqcup N$ into a positive set $P$ and a negative set $N$;
+setting $\nu^+(A) = \nu(A \cap P)$ and $\nu^-(A) = -\nu(A \cap N)$ yields two
+genuine (nonnegative) measures.
+
+\begin{proposition}[Jordan decomposition]
+\label{prop:jordan}
+Every signed measure $\nu$ admits a unique decomposition
+\begin{equation}
+  \nu = \nu^+ - \nu^-, \qquad \nu^+ \sing \nu^-,
+\end{equation}
+into mutually singular measures. Its \emph{total variation} is
+$\lvert \nu \rvert = \nu^+ + \nu^-$, and $\nu \abscont \mu$ is defined to mean
+$\lvert \nu \rvert \abscont \mu$.
+\end{proposition}
+
+This reduces every statement about signed measures to the nonnegative case
+applied to $\nu^+$ and $\nu^-$ separately, which is how the Radon--Nikodym
+theorem is extended to signed and complex measures.

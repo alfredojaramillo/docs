@@ -1,0 +1,59 @@
+\section{The binomial example and the shape of the likelihood}
+\label{sec:binomial-shape}
+
+Consider the binomial model with probability of success $q$ and $n$ known. The
+probability mass function of the count $\Upsilon$ is
+\begin{equation}
+  \dens_\Upsilon(v; q, n) = \Prob(\Upsilon = v \given n, q)
+  = \binom{n}{v} q^v (1-q)^{n-v},
+  \qquad v \in \{0,1,\dots,n\}.
+  \label{eq:pmf}
+\end{equation}
+Fixing an observed count $v$ and reading \eqref{eq:pmf} as a function of $q$ gives
+the likelihood
+\begin{equation}
+  \like(q \given v, n) = \binom{n}{v} q^v (1-q)^{n-v},
+  \qquad q \in [0,1].
+  \label{eq:lik}
+\end{equation}
+
+\paragraph{Why it has that shape.}
+As a function of $q$, expression \eqref{eq:lik} is the kernel of a
+$\mathrm{Beta}(v+1,\, n-v+1)$ density; everything about its shape follows from
+that. The binomial coefficient is constant in $q$: it rescales vertically and
+plays no role in location or shape. The shape is the product of two competing
+power terms --- $q^v$ rewards larger $q$ (pulling mass toward $1$), while
+$(1-q)^{n-v}$ rewards smaller $q$ (pulling toward $0$) --- and they balance at
+an interior point.
+
+Work with the log-likelihood
+\begin{equation}
+  \loglike(q) = \text{const} + v\log q + (n-v)\log(1-q).
+\end{equation}
+Then
+\begin{equation}
+  \loglike'(q) = \frac{v}{q} - \frac{n-v}{1-q} = 0
+  \;\Longrightarrow\; v(1-q) = (n-v)q
+  \;\Longrightarrow\; q = \frac{v}{n},
+\end{equation}
+which is exactly the MLE, and
+\begin{equation}
+  \loglike''(q) = -\frac{v}{q^2} - \frac{n-v}{(1-q)^2} < 0
+  \quad \text{on } (0,1),
+\end{equation}
+so $\loglike$ is strictly concave. Hence $\like$ is strictly log-concave,
+therefore unimodal with a single peak at $q = v/n$.
+
+For $0 < v < n$ the endpoints vanish, $\like(0) = \like(1) = 0$, giving the
+characteristic single bump: rising from $0$, peaking at $v/n$, decaying back to
+$0$. The degenerate cases collapse the bump against a wall: $v = 0$ gives
+$(1-q)^n$, monotone decreasing with mode at $q = 0$; $v = n$ gives $q^n$,
+monotone increasing with mode at $q = 1$.
+
+\begin{remark}
+$\like$ is smooth (a degree-$n$ polynomial in $q$), which is what is meant by
+calling it ``continuous.'' It is \emph{not} a density in $q$: it does not
+integrate to $1$ over $q$. Normalizing requires dividing by
+$\Betafn(v+1, n-v+1)$, and the fact that this normalization produces the Beta
+distribution is precisely Beta--Binomial conjugacy.
+\end{remark}

@@ -1,0 +1,64 @@
+\section{The likelihood function, formally}
+\label{sec:definition}
+
+\begin{definition}[Likelihood function]
+\label{def:likelihood}
+Let $\{P_\theta : \theta \in \Theta\}$ be a statistical model, a family of
+probability measures on a sample space $(\Xspace, \salg)$, all dominated by a
+common $\sigma$-finite measure $\Leb$ (counting measure in the discrete case,
+Lebesgue measure in the continuous case). By the Radon--Nikodym theorem each
+$P_\theta$ has a density
+\begin{equation}
+  \dens(x \given \theta) = \RN{P_\theta}{\Leb}(x).
+\end{equation}
+Given an observed outcome $x$, the \emph{likelihood function} is the map
+\begin{equation}
+  \like(\cdot \given x) : \Theta \to [0, \infty),
+  \qquad
+  \like(\theta \given x) = \dens(x \given \theta).
+\end{equation}
+\end{definition}
+
+The single content-bearing move is the exchange of roles from
+Section~\ref{sec:slices}: it is the same function $\dens(x \given \theta)$, but
+$x$ is held fixed (the data observed) and $\theta$ is the free variable. The
+likelihood is a function on the parameter space, not on the sample space.
+
+Three points that the informal ``density read backwards'' phrasing obscures:
+
+\begin{enumerate}[label=\textbf{\arabic*.}, leftmargin=*, itemsep=0.4em]
+  \item \textbf{Defined only up to a $\theta$-independent positive factor.}
+    The Radon--Nikodym derivative depends on the dominating measure: switching
+    $\Leb \to \tilde\Leb$ with $\RN{\Leb}{\tilde\Leb} = h(x)$ multiplies every
+    density, hence $\like(\theta \given x)$, by the constant-in-$\theta$ factor
+    $h(x)$. This changes nothing inferential --- the $\argmax$, the likelihood
+    ratios $\like(\theta_1 \given x)/\like(\theta_2 \given x)$, and the score
+    $\nabla_\theta \log \like$ are all invariant. The likelihood is properly an
+    equivalence class under multiplication by positive functions of $x$ alone.
+    This is why the $\binom{n}{v}$ in Section~\ref{sec:binomial-shape} was inert.
+
+  \item \textbf{$\like(\theta \given x)$ is not a density in $\theta$.}
+    There is no reference measure on $\Theta$ in the definition, and
+    $\int_\Theta \like(\theta \given x)\, d\theta$ need not be finite, let alone
+    $1$ (the $\tfrac{1}{n+1}$ computation of \eqref{eq:lik-integral}). The
+    likelihood becomes a probabilistic object on $\Theta$ only after a prior is
+    supplied and the product normalized (Bayes).
+
+  \item \textbf{The fixed $x$ must lie in the support.}
+    Where all $P_\theta$ assign zero $\Leb$-density the derivative is defined
+    only $\Leb$-a.e., so $\like$ is genuinely ambiguous there --- harmless,
+    since one evaluates at observed data.
+\end{enumerate}
+
+\paragraph{The iid case.}
+For iid data $x = (x_1, \dots, x_m)$ from $\dens(\cdot \given \theta)$, the
+product structure of the joint density gives
+\begin{equation}
+  \like(\theta \given x) = \prod_{i=1}^{m} \dens(x_i \given \theta),
+\end{equation}
+and one works with the log-likelihood
+\begin{equation}
+  \loglike(\theta) = \log \like(\theta \given x)
+  = \sum_{i=1}^{m} \log \dens(x_i \given \theta),
+\end{equation}
+the MLE being any $\hat\theta \in \argmax_{\theta \in \Theta} \loglike(\theta)$.
