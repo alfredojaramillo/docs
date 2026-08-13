@@ -30,32 +30,42 @@ concurrency:
 
 jobs:
   build:
+    # Single job in the full TeX Live container: the image is pulled once and
+    # both documents compile in it, instead of a matrix that pulls it per doc.
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - dir: ProbabilityAndStatistics
-            root: probability-and-statistics.tex
-          - dir: MeasureTheory
-            root: measure-theory.tex
-    name: ${{ matrix.dir }}
+    container: texlive/texlive:latest
     steps:
+      - name: Install git and make
+        # git: required by actions/checkout inside the container.
+        # make: used to build each document via its Makefile.
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git make
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Compile ${{ matrix.root }}
-        uses: xu-cheng/latex-action@v3
-        with:
-          working_directory: ${{ matrix.dir }}
-          root_file: ${{ matrix.root }}
-          latexmk_shell_escape: false
+      - name: Compile documents
+        run: |
+          set -e
+          for d in ProbabilityAndStatistics MeasureTheory; do
+            echo "::group::make -C $d"
+            make -C "$d"
+            echo "::endgroup::"
+          done
 
-      - name: Upload PDF
+      - name: Upload ProbabilityAndStatistics PDF
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.dir }}
-          path: ${{ matrix.dir }}/*.pdf
+          name: ProbabilityAndStatistics
+          path: ProbabilityAndStatistics/*.pdf
+          if-no-files-found: error
+
+      - name: Upload MeasureTheory PDF
+        uses: actions/upload-artifact@v4
+        with:
+          name: MeasureTheory
+          path: MeasureTheory/*.pdf
           if-no-files-found: error
 
   deploy:
@@ -72,7 +82,6 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Configure Pages
-        # Enables Pages with the "GitHub Actions" source if not already enabled.
         uses: actions/configure-pages@v5
 
       - name: Download compiled PDFs
